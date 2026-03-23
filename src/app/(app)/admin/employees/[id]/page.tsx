@@ -428,7 +428,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Role</Label>
-                <Select value={form.role} onValueChange={(v) => setForm((p) => ({ ...p, role: v }))}>
+                <Select value={form.role} onValueChange={(v) => setForm((p) => ({ ...p, role: v ?? "" }))}>
                   <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Object.entries(ROLE_LABELS).map(([v, l]) => (
@@ -439,7 +439,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
               </div>
               <div className="space-y-1.5">
                 <Label>Status</Label>
-                <Select value={form.employmentStatus} onValueChange={(v) => setForm((p) => ({ ...p, employmentStatus: v }))}>
+                <Select value={form.employmentStatus} onValueChange={(v) => setForm((p) => ({ ...p, employmentStatus: v ?? "" }))}>
                   <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="active">Active</SelectItem>
@@ -455,7 +455,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                 <Label>Department</Label>
                 <Select
                   value={form.departmentId || "_none"}
-                  onValueChange={(v) => setForm((p) => ({ ...p, departmentId: v === "_none" ? "" : v }))}
+                  onValueChange={(v) => setForm((p) => ({ ...p, departmentId: v === "_none" ? "" : (v ?? "") }))}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="None">
@@ -476,7 +476,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                 <Label>Manager</Label>
                 <Select
                   value={form.managerId || "_none"}
-                  onValueChange={(v) => setForm((p) => ({ ...p, managerId: v === "_none" ? "" : v }))}
+                  onValueChange={(v) => setForm((p) => ({ ...p, managerId: v === "_none" ? "" : (v ?? "") }))}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="None">

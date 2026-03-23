@@ -199,7 +199,7 @@ export default function AuditLogPage() {
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
           <Label className="text-xs">Action</Label>
-          <Select value={action || "_all"} onValueChange={(v) => { setAction(v === "_all" ? "" : v); resetPage(); }}>
+          <Select value={action || "_all"} onValueChange={(v) => { setAction(v === "_all" ? "" : (v ?? "")); resetPage(); }}>
             <SelectTrigger className="w-56">
               <SelectValue placeholder="All actions" />
             </SelectTrigger>
@@ -213,7 +213,7 @@ export default function AuditLogPage() {
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Entity Type</Label>
-          <Select value={entityType || "_all"} onValueChange={(v) => { setEntityType(v === "_all" ? "" : v); resetPage(); }}>
+          <Select value={entityType || "_all"} onValueChange={(v) => { setEntityType(v === "_all" ? "" : (v ?? "")); resetPage(); }}>
             <SelectTrigger className="w-40">
               <SelectValue placeholder="All types" />
             </SelectTrigger>

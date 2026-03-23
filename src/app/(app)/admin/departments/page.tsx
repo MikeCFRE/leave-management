@@ -128,7 +128,7 @@ function DeptDialog({
               </Label>
               <Select
                 value={form.parentId || "_none"}
-                onValueChange={(v) => setForm((p) => ({ ...p, parentId: v === "_none" ? "" : v }))}
+                onValueChange={(v) => setForm((p) => ({ ...p, parentId: v === "_none" ? "" : (v ?? "") }))}
               >
                 <SelectTrigger id="dept-parent" className="w-full">
                   <SelectValue placeholder="None (top-level)">

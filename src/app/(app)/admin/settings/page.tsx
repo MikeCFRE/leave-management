@@ -114,7 +114,7 @@ function OrgInfoCard({
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="s-tz">Timezone</Label>
-            <Select value={timezone} onValueChange={setTimezone}>
+            <Select value={timezone} onValueChange={(v) => setTimezone(v ?? timezone)}>
               <SelectTrigger id="s-tz" className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -127,7 +127,7 @@ function OrgInfoCard({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="s-fiscal">Fiscal Year Start</Label>
-            <Select value={fiscalMonth.toString()} onValueChange={(v) => setFiscalMonth(parseInt(v))}>
+            <Select value={fiscalMonth.toString()} onValueChange={(v) => setFiscalMonth(parseInt(v ?? fiscalMonth.toString()))}>
               <SelectTrigger id="s-fiscal" className="w-full">
                 <SelectValue />
               </SelectTrigger>

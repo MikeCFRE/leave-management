@@ -136,7 +136,7 @@ function CreateEmployeeDialog({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="ce-role">Role</Label>
-                  <Select value={form.role} onValueChange={(v) => setForm((p) => ({ ...p, role: v }))}>
+                  <Select value={form.role} onValueChange={(v) => setForm((p) => ({ ...p, role: v ?? "" }))}>
                     <SelectTrigger id="ce-role" className="w-full">
                       <SelectValue />
                     </SelectTrigger>
@@ -151,7 +151,7 @@ function CreateEmployeeDialog({
                   <Label htmlFor="ce-dept">Department</Label>
                   <Select
                     value={form.departmentId}
-                    onValueChange={(v) => setForm((p) => ({ ...p, departmentId: v }))}
+                    onValueChange={(v) => setForm((p) => ({ ...p, departmentId: v ?? "" }))}
                   >
                     <SelectTrigger id="ce-dept" className="w-full">
                       <SelectValue placeholder="None" />
@@ -246,7 +246,7 @@ export default function EmployeesPage() {
   }
 
   function handleFilterChange(setter: (v: string) => void) {
-    return (v: string) => { setter(v === "_all" ? "" : v); setPage(1); };
+    return (v: string | null) => { setter(v === "_all" ? "" : (v ?? "")); setPage(1); };
   }
 
   if (error?.data?.code === "FORBIDDEN") {

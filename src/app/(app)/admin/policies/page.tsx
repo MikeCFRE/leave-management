@@ -286,7 +286,7 @@ function LeaveTypesTab({ departments: _departments }: { departments: Department[
         <div className="py-12 text-center text-sm text-slate-400">No leave types defined.</div>
       ) : (
         <div className="divide-y rounded-lg border">
-          {(leaveTypes as LeaveType[]).map((lt) => (
+          {(leaveTypes as unknown as LeaveType[]).map((lt) => (
             <div key={lt.id} className="flex items-center justify-between gap-4 px-4 py-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
@@ -416,7 +416,8 @@ function PolicyRuleDialog({
     onError: (err) => toast.error(err.message),
   });
 
-  function handleRuleTypeChange(v: string) {
+  function handleRuleTypeChange(v: string | null) {
+    if (!v) return;
     setForm((p) => ({ ...p, ruleType: v, parameters: PARAM_TEMPLATES[v] ?? "{}" }));
     setParamError("");
   }
@@ -432,7 +433,7 @@ function PolicyRuleDialog({
     }
     setParamError("");
     const payload = {
-      ruleType: form.ruleType,
+      ruleType: form.ruleType as "advance_notice" | "consecutive_cap" | "coverage_min" | "blackout" | "balance_override",
       departmentId: form.departmentId || undefined,
       priority: parseInt(form.priority) || 10,
       effectiveFrom: form.effectiveFrom,
@@ -482,7 +483,7 @@ function PolicyRuleDialog({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="pr-dept">Department <span className="font-normal text-slate-400">(optional)</span></Label>
-                <Select value={form.departmentId} onValueChange={(v) => setForm((p) => ({ ...p, departmentId: v === "_all" ? "" : v }))}>
+                <Select value={form.departmentId} onValueChange={(v) => setForm((p) => ({ ...p, departmentId: v === "_all" ? "" : (v ?? "") }))}>
                   <SelectTrigger id="pr-dept" className="w-full">
                     <SelectValue placeholder="All departments" />
                   </SelectTrigger>
@@ -598,13 +599,13 @@ function PolicyRulesTab({ departments }: { departments: Department[] }) {
   const deptMap = new Map(departments.map((d) => [d.id, d.name]));
 
   const filtered = typeFilter
-    ? (rules as PolicyRule[]).filter((r) => r.ruleType === typeFilter)
-    : (rules as PolicyRule[]);
+    ? (rules as unknown as PolicyRule[]).filter((r) => r.ruleType === typeFilter)
+    : (rules as unknown as PolicyRule[]);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Select value={typeFilter || "_all"} onValueChange={(v) => setTypeFilter(v === "_all" ? "" : v)}>
+        <Select value={typeFilter || "_all"} onValueChange={(v) => setTypeFilter(v === "_all" ? "" : (v ?? ""))}>
           <SelectTrigger className="w-48">
             <SelectValue placeholder="All rule types" />
           </SelectTrigger>
@@ -746,7 +747,7 @@ function BlackoutDialog({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="bo-dept">Department <span className="font-normal text-slate-400">(opt)</span></Label>
-                <Select value={form.departmentId} onValueChange={(v) => setForm((p) => ({ ...p, departmentId: v === "_all" ? "" : v }))}>
+                <Select value={form.departmentId} onValueChange={(v) => setForm((p) => ({ ...p, departmentId: v === "_all" ? "" : (v ?? "") }))}>
                   <SelectTrigger id="bo-dept" className="w-full">
                     <SelectValue placeholder="All" />
                   </SelectTrigger>
@@ -760,7 +761,7 @@ function BlackoutDialog({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="bo-severity">Severity</Label>
-                <Select value={form.severity} onValueChange={(v) => setForm((p) => ({ ...p, severity: v }))}>
+                <Select value={form.severity} onValueChange={(v) => setForm((p) => ({ ...p, severity: v ?? "" }))}>
                   <SelectTrigger id="bo-severity" className="w-full">
                     <SelectValue />
                   </SelectTrigger>

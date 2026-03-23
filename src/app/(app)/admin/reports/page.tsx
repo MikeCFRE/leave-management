@@ -119,7 +119,7 @@ function FilterBar({
         <Label className="text-xs">Department</Label>
         <Select
           value={local.departmentId || "_all"}
-          onValueChange={(v) => setLocal((p) => ({ ...p, departmentId: v === "_all" ? "" : v }))}
+          onValueChange={(v) => setLocal((p) => ({ ...p, departmentId: v === "_all" ? "" : (v ?? "") }))}
         >
           <SelectTrigger className="w-44">
             <SelectValue placeholder="All departments" />
@@ -343,7 +343,7 @@ function AllRequestsReport({ departments }: { departments: { id: string; name: s
   const pages = data?.pages ?? 1;
 
   function handleFilter(setter: (v: string) => void) {
-    return (v: string) => { setter(v === "_all" ? "" : v); setPage(1); };
+    return (v: string | null) => { setter(v === "_all" ? "" : (v ?? "")); setPage(1); };
   }
 
   return (
