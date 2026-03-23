@@ -1,0 +1,331 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { format } from "date-fns";
+import {
+  PlusCircle,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  CalendarDays,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+} from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import { trpc } from "@/lib/trpc";
+import type { LeaveStatus } from "@/lib/types";
+
+// ---------------------------------------------------------------------------
+// Status badge (same config as dashboard)
+// ---------------------------------------------------------------------------
+
+const STATUS_CFG: Record<
+  LeaveStatus,
+  {
+    label: string;
+    variant: "default" | "secondary" | "destructive" | "outline";
+    icon: React.ComponentType<{ className?: string }>;
+  }
+> = {
+  pending: { label: "Pending", variant: "outline", icon: Clock },
+  approved: { label: "Approved", variant: "default", icon: CheckCircle2 },
+  denied: { label: "Denied", variant: "destructive", icon: XCircle },
+  cancelled: { label: "Cancelled", variant: "secondary", icon: XCircle },
+  expired: { label: "Expired", variant: "secondary", icon: AlertCircle },
+  draft: { label: "Draft", variant: "outline", icon: Clock },
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_CFG[status as LeaveStatus] ?? STATUS_CFG.pending;
+  return (
+    <Badge variant={cfg.variant} className="gap-1 text-xs shrink-0">
+      <cfg.icon className="h-3 w-3" />
+      {cfg.label}
+    </Badge>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Filter tabs
+// ---------------------------------------------------------------------------
+
+const FILTER_TABS: { label: string; value: LeaveStatus | "all" }[] = [
+  { label: "All", value: "all" },
+  { label: "Pending", value: "pending" },
+  { label: "Approved", value: "approved" },
+  { label: "Denied", value: "denied" },
+  { label: "Cancelled", value: "cancelled" },
+];
+
+// ---------------------------------------------------------------------------
+// Cancel confirmation dialog
+// ---------------------------------------------------------------------------
+
+function CancelDialog({
+  requestId,
+  isApproved,
+  open,
+  onClose,
+}: {
+  requestId: string;
+  isApproved: boolean;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const utils = trpc.useUtils();
+  const cancel = trpc.leave.cancelRequest.useMutation({
+    onSuccess: () => {
+      toast.success("Request cancelled.");
+      utils.leave.getMyRequests.invalidate();
+      utils.leave.getBalances.invalidate();
+      onClose();
+    },
+    onError: (err) => {
+      toast.error(err.message);
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle>Cancel this request?</DialogTitle>
+          <DialogDescription>
+            {isApproved
+              ? "The approved request will be cancelled, your leave balance will be restored, and your approver will be notified. This cannot be undone."
+              : "The request will be marked as cancelled and any pending balance will be restored. This cannot be undone."}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>
+            Keep request
+          </DialogClose>
+          <Button
+            variant="destructive"
+            onClick={() => cancel.mutate({ requestId })}
+            disabled={cancel.isPending}
+          >
+            {cancel.isPending && (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            )}
+            Yes, cancel it
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
+const PAGE_SIZE = 10;
+
+export default function RequestHistoryPage() {
+  const [statusFilter, setStatusFilter] = useState<LeaveStatus | "all">("all");
+  const [page, setPage] = useState(1);
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; isApproved: boolean } | null>(null);
+
+  const { data, isLoading } = trpc.leave.getMyRequests.useQuery({
+    status: statusFilter === "all" ? undefined : statusFilter,
+    page,
+    limit: PAGE_SIZE,
+  });
+
+  const items = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const pages = data?.pages ?? 1;
+
+  function handleFilterChange(f: LeaveStatus | "all") {
+    setStatusFilter(f);
+    setPage(1);
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-900">
+            Request History
+          </h2>
+          <p className="mt-0.5 text-sm text-slate-500">
+            {total > 0 ? `${total} request${total !== 1 ? "s" : ""}` : "No requests yet"}
+          </p>
+        </div>
+        <Button nativeButton={false} render={<Link href="/requests/new" />}>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          New Request
+        </Button>
+      </div>
+
+      {/* Filter tabs */}
+      <div className="flex flex-wrap gap-1">
+        {FILTER_TABS.map((tab) => (
+          <button
+            key={tab.value}
+            onClick={() => handleFilterChange(tab.value)}
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+              statusFilter === tab.value
+                ? "bg-slate-900 text-white"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Table */}
+      <Card>
+        {isLoading ? (
+          <CardContent className="flex items-center justify-center py-16">
+            <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+          </CardContent>
+        ) : items.length === 0 ? (
+          <CardContent className="py-16 text-center">
+            <CalendarDays className="mx-auto mb-3 h-8 w-8 text-slate-200" />
+            <p className="text-sm text-slate-400">
+              {statusFilter === "all"
+                ? "No requests yet."
+                : `No ${statusFilter} requests.`}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-4"
+              nativeButton={false}
+              render={<Link href="/requests/new" />}
+            >
+              <PlusCircle className="mr-1.5 h-3.5 w-3.5" />
+              Request Time Off
+            </Button>
+          </CardContent>
+        ) : (
+          <>
+            {/* Table header */}
+            <div className="hidden border-b px-4 pb-2 pt-3 sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] sm:gap-4">
+              {["Leave Type", "Dates", "Days", "Submitted", "Status"].map(
+                (h) => (
+                  <span
+                    key={h}
+                    className="text-xs font-semibold uppercase tracking-wider text-slate-400"
+                  >
+                    {h}
+                  </span>
+                )
+              )}
+            </div>
+
+            <div className="divide-y">
+              {items.map((req) => {
+                const days = parseFloat(req.totalBusinessDays);
+                return (
+                  <div
+                    key={req.id}
+                    className="flex flex-col gap-2 px-4 py-3 sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] sm:items-center sm:gap-4"
+                  >
+                    {/* Leave type */}
+                    <Link
+                      href={`/requests/${req.id}`}
+                      className="text-sm font-medium text-slate-800 hover:underline"
+                    >
+                      {req.leaveType.name}
+                    </Link>
+
+                    {/* Dates */}
+                    <span className="text-xs text-slate-500">
+                      {format(new Date(req.startDate), "MMM d")}
+                      {" – "}
+                      {format(new Date(req.endDate), "MMM d, yyyy")}
+                    </span>
+
+                    {/* Days */}
+                    <span className="text-xs text-slate-500 tabular-nums">
+                      {days.toFixed(1)}d
+                    </span>
+
+                    {/* Submitted */}
+                    <span className="text-xs text-slate-400">
+                      {req.submittedAt
+                        ? format(new Date(req.submittedAt), "MMM d, yyyy")
+                        : "—"}
+                    </span>
+
+                    {/* Status + actions */}
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={req.status} />
+                      {(req.status === "pending" || req.status === "approved") && (
+                        <button
+                          onClick={() => setCancelTarget({ id: req.id, isApproved: req.status === "approved" })}
+                          className="text-xs text-red-500 hover:underline"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {/* Pagination */}
+        {pages > 1 && (
+          <CardFooter className="flex items-center justify-between border-t pt-3">
+            <span className="text-xs text-slate-400">
+              Page {page} of {pages}
+            </span>
+            <div className="flex gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setPage((p) => Math.min(pages, p + 1))}
+                disabled={page >= pages}
+                aria-label="Next page"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardFooter>
+        )}
+      </Card>
+
+      {/* Cancel dialog */}
+      {cancelTarget && (
+        <CancelDialog
+          requestId={cancelTarget.id}
+          isApproved={cancelTarget.isApproved}
+          open={!!cancelTarget}
+          onClose={() => setCancelTarget(null)}
+        />
+      )}
+    </div>
+  );
+}
