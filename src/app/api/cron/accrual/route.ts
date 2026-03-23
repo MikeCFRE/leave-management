@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
 import { runAccrualProcessing } from "@/server/cron/accrual-processing";
 
