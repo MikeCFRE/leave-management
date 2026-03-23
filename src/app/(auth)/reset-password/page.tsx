@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, Loader2, CheckCircle } from "lucide-react";
@@ -208,7 +208,7 @@ function ConfirmResetForm({ token }: { token: string }) {
 // Page — switches between request and confirm based on ?token=
 // ---------------------------------------------------------------------------
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
 
@@ -217,4 +217,12 @@ export default function ResetPasswordPage() {
   }
 
   return <RequestResetForm />;
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<RequestResetForm />}>
+      <ResetPasswordContent />
+    </Suspense>
+  );
 }
