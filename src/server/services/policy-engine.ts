@@ -199,7 +199,7 @@ async function validateAdvanceNotice(
   const tier = tiers.find(
     (t) =>
       input.totalBusinessDays >= t.min_days &&
-      input.totalBusinessDays <= t.max_days
+      (t.max_days == null || input.totalBusinessDays <= t.max_days)
   );
 
   if (!tier) return null; // No tier covers this duration (e.g., >10 days — handled by consecutive cap)

@@ -341,7 +341,7 @@ const RULE_TYPES = [
 ];
 
 const RULE_DESCRIPTIONS: Record<string, string> = {
-  advance_notice: "Requires employees to submit leave requests a minimum number of hours before the start date.",
+  advance_notice: "Requires employees to submit leave requests a minimum number of days before the start date.",
   consecutive_cap: "Limits how many consecutive days off an employee can take, and how many extended leave blocks per year.",
   coverage_min: "Blocks leave approval if it would leave fewer than the required number of employees working at the same time.",
   blackout: "Restricts leave requests during a period. For date-specific blackouts, use the Blackout Periods tab.",
@@ -355,7 +355,7 @@ type PRForm = {
   effectiveFrom: string;
   effectiveUntil: string;
   // advance_notice
-  noticeHours: string;
+  noticeDays: string;
   // consecutive_cap
   maxConsecutiveDays: string;
   minGapDays: string;
@@ -376,7 +376,7 @@ const EMPTY_PR: PRForm = {
   priority: "10",
   effectiveFrom: "",
   effectiveUntil: "",
-  noticeHours: "48",
+  noticeDays: "2",
   maxConsecutiveDays: "7",
   minGapDays: "14",
   maxLongBlocksPerYear: "2",
@@ -389,7 +389,7 @@ const EMPTY_PR: PRForm = {
 
 function paramsFromRule(p: Record<string, unknown>): Partial<PRForm> {
   return {
-    noticeHours: String((p?.tiers as Array<{ notice_hours: number }>)?.[0]?.notice_hours ?? 48),
+    noticeDays: String(Math.round(((p?.tiers as Array<{ notice_hours: number }>)?.[0]?.notice_hours ?? 48) / 24)),
     maxConsecutiveDays: String((p?.max_consecutive_days as number) ?? 7),
     minGapDays: String((p?.min_gap_between_blocks_days as number) ?? 14),
     maxLongBlocksPerYear: String((p?.max_long_blocks_per_year as number) ?? 2),
@@ -404,7 +404,7 @@ function paramsFromRule(p: Record<string, unknown>): Partial<PRForm> {
 function buildParams(form: PRForm): Record<string, unknown> {
   switch (form.ruleType) {
     case "advance_notice":
-      return { tiers: [{ min_days: 1, max_days: null, notice_hours: parseInt(form.noticeHours) || 48 }] };
+      return { tiers: [{ min_days: 1, max_days: 9999, notice_hours: (parseInt(form.noticeDays) || 2) * 24 }] };
     case "consecutive_cap":
       return {
         max_consecutive_days: parseInt(form.maxConsecutiveDays) || 7,
@@ -428,7 +428,8 @@ function ruleSummary(rule: PolicyRule): string {
   switch (rule.ruleType) {
     case "advance_notice": {
       const h = (p?.tiers as Array<{ notice_hours: number }>)?.[0]?.notice_hours ?? 48;
-      return `${h} hours advance notice required`;
+      const d = Math.round(h / 24);
+      return `${d} day${d !== 1 ? "s" : ""} advance notice required`;
     }
     case "consecutive_cap": {
       const max = (p?.max_consecutive_days as number) ?? 7;
@@ -588,10 +589,10 @@ function PolicyRuleDialog({
             {/* advance_notice */}
             {form.ruleType === "advance_notice" && (
               <div className="space-y-1.5">
-                <Label htmlFor="pr-notice-hours">Required advance notice (hours)</Label>
-                <Input id="pr-notice-hours" type="number" min={1} value={form.noticeHours}
-                  onChange={(e) => setForm((p) => ({ ...p, noticeHours: e.target.value }))} />
-                <p className="text-xs text-slate-400">Example: 48 = employees must submit requests at least 2 days before the start date.</p>
+                <Label htmlFor="pr-notice-days">Required advance notice (days)</Label>
+                <Input id="pr-notice-days" type="number" min={1} value={form.noticeDays}
+                  onChange={(e) => setForm((p) => ({ ...p, noticeDays: e.target.value }))} />
+                <p className="text-xs text-slate-400">Example: 60 = employees must submit requests at least 60 days before the start date.</p>
               </div>
             )}
 
