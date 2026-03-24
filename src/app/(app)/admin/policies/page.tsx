@@ -488,7 +488,7 @@ function PolicyRuleDialog({
 
   const update = trpc.admin.updatePolicyRule.useMutation({
     onSuccess: () => {
-      toast.success("Policy rule updated (new version created).");
+      toast.success("Policy rule updated.");
       utils.admin.listPolicyRules.invalidate();
       onClose();
     },
@@ -676,7 +676,7 @@ function PolicyRuleDialog({
             <DialogClose render={<Button variant="outline" />} disabled={isPending}>Cancel</DialogClose>
             <Button type="submit" disabled={isPending || !form.effectiveFrom}>
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {mode === "create" ? "Create Rule" : "Save (new version)"}
+              {mode === "create" ? "Create Rule" : "Save Changes"}
             </Button>
           </DialogFooter>
         </form>

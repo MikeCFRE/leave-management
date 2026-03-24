@@ -1,7 +1,7 @@
 import { randomBytes } from "crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { publicProcedure, router } from "./trpc";
 import { db } from "@/server/db";
 import {
@@ -730,7 +730,10 @@ export const adminRouter = router({
             ? eq(policyRules.departmentId, input.departmentId)
             : undefined,
           input?.activeOnly !== false ? eq(policyRules.isActive, true) : undefined,
-          input?.activeOnly !== false ? lte(policyRules.effectiveFrom, today) : undefined
+          input?.activeOnly !== false ? lte(policyRules.effectiveFrom, today) : undefined,
+          input?.activeOnly !== false
+            ? or(isNull(policyRules.effectiveUntil), gte(policyRules.effectiveUntil, today))
+            : undefined
         ),
         orderBy: [desc(policyRules.priority), desc(policyRules.createdAt)],
       });
@@ -812,41 +815,16 @@ export const adminRouter = router({
       });
       if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const today = formatDate(new Date());
-
-      const [newRule] = await db.transaction(async (tx) => {
-        // Expire the old rule as of yesterday (so today the new one takes effect)
-        const expiryDate =
-          input.effectiveFrom > today
-            ? // New rule is future-dated — expire old one the day before it starts
-              formatDate(
-                new Date(
-                  new Date(input.effectiveFrom).getTime() - 86_400_000
-                )
-              )
-            : today;
-
-        await tx
-          .update(policyRules)
-          .set({ effectiveUntil: expiryDate, updatedAt: new Date() })
-          .where(eq(policyRules.id, input.ruleId));
-
-        return tx
-          .insert(policyRules)
-          .values({
-            organizationId: existing.organizationId,
-            departmentId: existing.departmentId,
-            userId: existing.userId,
-            ruleType: existing.ruleType,
-            parameters: input.parameters,
-            priority: input.priority ?? existing.priority,
-            effectiveFrom: input.effectiveFrom,
-            effectiveUntil: input.effectiveUntil ?? null,
-            isActive: true,
-            createdBy: ctx.user.id,
-          })
-          .returning();
-      });
+      await db
+        .update(policyRules)
+        .set({
+          parameters: input.parameters,
+          priority: input.priority ?? existing.priority,
+          effectiveFrom: input.effectiveFrom,
+          effectiveUntil: input.effectiveUntil ?? null,
+          updatedAt: new Date(),
+        })
+        .where(eq(policyRules.id, input.ruleId));
 
       await appendAuditLog({
         organizationId: ctx.user.organizationId,
