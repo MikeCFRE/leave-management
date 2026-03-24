@@ -843,7 +843,7 @@ export const adminRouter = router({
         },
       });
 
-      return newRule;
+      return { success: true };
     }),
 
   deletePolicyRule: adminProcedure
