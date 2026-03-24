@@ -2,6 +2,7 @@ import { db } from "@/server/db";
 import { users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import { Resend } from "resend";
 
 const BCRYPT_COST = 12;
 const MAX_FAILED_ATTEMPTS = 5;
@@ -109,12 +110,11 @@ export async function sendWelcomeEmail(params: {
   firstName: string;
   tempPassword: string;
 }): Promise<void> {
-  const { Resend } = await import("resend");
   const resend = new Resend(process.env.RESEND_API_KEY);
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
   await resend.emails.send({
-    from: process.env.EMAIL_FROM ?? "noreply@5thcoastproperties.com",
+    from: process.env.EMAIL_FROM ?? "noreply@fivecpm.com",
     to: params.email,
     subject: "Your Leave Management account is ready",
     html: `
@@ -150,7 +150,6 @@ export async function sendWelcomeEmail(params: {
 }
 
 export async function sendPasswordResetEmail(email: string): Promise<void> {
-  const { Resend } = await import("resend");
   const { createPasswordResetToken } = await import("@/lib/password");
 
   const user = await getUserByEmail(email);
@@ -163,7 +162,7 @@ export async function sendPasswordResetEmail(email: string): Promise<void> {
 
   const resend = new Resend(process.env.RESEND_API_KEY);
   await resend.emails.send({
-    from: process.env.EMAIL_FROM ?? "noreply@5thcoastproperties.com",
+    from: process.env.EMAIL_FROM ?? "noreply@fivecpm.com",
     to: email,
     subject: "Reset your password — Leave Management",
     html: `

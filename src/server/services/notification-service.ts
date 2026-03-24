@@ -35,7 +35,7 @@ function resend(): Resend {
 }
 
 const EMAIL_FROM =
-  process.env.EMAIL_FROM ?? "noreply@categoryfiveventures.com";
+  process.env.EMAIL_FROM ?? "noreply@fivecpm.com";
 
 function getChannel(
   prefs: NotificationPreferences | null | undefined,

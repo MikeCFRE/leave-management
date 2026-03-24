@@ -24,11 +24,8 @@ export async function requestPasswordReset(
   const email = (formData.get("email") as string | null)?.toLowerCase().trim();
   if (!email) return { error: "Email is required" };
 
-  try {
-    await sendPasswordResetEmail(email);
-  } catch {
-    // Swallow errors — don't reveal anything to caller
-  }
+  // Fire-and-forget — don't block the response waiting for the email
+  sendPasswordResetEmail(email).catch(() => {});
 
   // Always return success — prevents email enumeration
   return { success: true };
