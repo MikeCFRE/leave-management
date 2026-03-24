@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { format, addMonths, subMonths, parseISO } from "date-fns";
+import { parseLocalDate } from "@/lib/date-utils";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -244,7 +245,7 @@ export default function TeamCalendarPage() {
                           </p>
                           <p className="mt-0.5 text-xs text-slate-500">{evt.leaveType.name}</p>
                           <p className="mt-0.5 text-xs text-slate-400">
-                            {format(new Date(evt.startDate), "MMM d")} – {format(new Date(evt.endDate), "MMM d")} · {days.toFixed(1)}d
+                            {format(parseLocalDate(evt.startDate.toString()), "MMM d")} – {format(parseLocalDate(evt.endDate.toString()), "MMM d")} · {days.toFixed(1)}d
                           </p>
                         </div>
                         <Badge variant={evt.status === "approved" ? "default" : "outline"} className="text-xs shrink-0">

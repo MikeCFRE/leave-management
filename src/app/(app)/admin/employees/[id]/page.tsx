@@ -4,6 +4,7 @@ import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
+import { parseLocalDate } from "@/lib/date-utils";
 import {
   ArrowLeft, Loader2, AlertCircle, Clock,
   CheckCircle2, XCircle, Minus, Plus,
@@ -561,9 +562,9 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                       {(req.leaveType as { name: string }).name}
                     </p>
                     <p className="mt-0.5 text-xs text-slate-400">
-                      {format(new Date(req.startDate), "MMM d")}
+                      {format(parseLocalDate(req.startDate), "MMM d")}
                       {" – "}
-                      {format(new Date(req.endDate), "MMM d, yyyy")}
+                      {format(parseLocalDate(req.endDate), "MMM d, yyyy")}
                       {" · "}
                       {days.toFixed(1)}d
                     </p>

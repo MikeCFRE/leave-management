@@ -84,6 +84,16 @@ export function formatDate(date: Date): string {
 }
 
 /**
+ * Parse a YYYY-MM-DD string as local midnight.
+ * `new Date("2024-04-10")` parses as UTC midnight, which in US timezones
+ * renders as April 9. This parses as local time instead.
+ */
+export function parseLocalDate(dateStr: string): Date {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+/**
  * Count calendar days of the gap between two non-overlapping date ranges.
  * Returns 0 if they overlap (gap validator won't use this in that case).
  */

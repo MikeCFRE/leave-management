@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
+import { parseLocalDate } from "@/lib/date-utils";
 import {
   CheckCircle2,
   XCircle,
@@ -138,11 +139,11 @@ function QueueCard({
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-600">
           <span>
             <span className="font-medium">
-              {format(new Date(request.startDate), "MMM d")}
+              {format(parseLocalDate(request.startDate), "MMM d")}
             </span>
             {" – "}
             <span className="font-medium">
-              {format(new Date(request.endDate), "MMM d, yyyy")}
+              {format(parseLocalDate(request.endDate), "MMM d, yyyy")}
             </span>
           </span>
           <span className="text-slate-400">

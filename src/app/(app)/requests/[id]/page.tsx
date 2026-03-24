@@ -4,6 +4,7 @@ import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { format, formatDistanceToNow } from "date-fns";
+import { parseLocalDate } from "@/lib/date-utils";
 import {
   ArrowLeft,
   Clock,
@@ -264,10 +265,10 @@ export default function RequestDetailPage({
         <CardContent className="divide-y">
           <DetailRow label="Leave Type">{request.leaveType.name}</DetailRow>
           <DetailRow label="Start Date">
-            {format(new Date(request.startDate), "EEEE, MMMM d, yyyy")}
+            {format(parseLocalDate(request.startDate), "EEEE, MMMM d, yyyy")}
           </DetailRow>
           <DetailRow label="End Date">
-            {format(new Date(request.endDate), "EEEE, MMMM d, yyyy")}
+            {format(parseLocalDate(request.endDate), "EEEE, MMMM d, yyyy")}
           </DetailRow>
           <DetailRow label="Duration">
             {days.toFixed(1)} business day{days !== 1 ? "s" : ""}

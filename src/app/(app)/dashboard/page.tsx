@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { format } from "date-fns";
+import { parseLocalDate } from "@/lib/date-utils";
 import {
   PlusCircle, Clock, CheckCircle2, XCircle,
   AlertCircle, ArrowRight, CalendarDays, Loader2,
@@ -124,9 +125,9 @@ function RequestRow({ req }: { req: RequestItem }) {
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-slate-800 truncate">{req.leaveType.name}</p>
         <p className="mt-0.5 text-xs text-slate-400">
-          {format(new Date(req.startDate), "MMM d")}
+          {format(parseLocalDate(req.startDate), "MMM d")}
           {" – "}
-          {format(new Date(req.endDate), "MMM d, yyyy")}
+          {format(parseLocalDate(req.endDate), "MMM d, yyyy")}
           {" · "}
           {days.toFixed(1)} day{days !== 1 ? "s" : ""}
         </p>

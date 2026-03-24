@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
+import { parseLocalDate } from "@/lib/date-utils";
 import {
   PlusCircle,
   ChevronLeft,
@@ -251,9 +252,9 @@ export default function RequestHistoryPage() {
 
                     {/* Dates */}
                     <span className="text-xs text-slate-500">
-                      {format(new Date(req.startDate), "MMM d")}
+                      {format(parseLocalDate(req.startDate), "MMM d")}
                       {" – "}
-                      {format(new Date(req.endDate), "MMM d, yyyy")}
+                      {format(parseLocalDate(req.endDate), "MMM d, yyyy")}
                     </span>
 
                     {/* Days */}

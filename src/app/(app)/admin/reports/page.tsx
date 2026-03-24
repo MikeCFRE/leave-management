@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
+import { parseLocalDate } from "@/lib/date-utils";
 import { Loader2, BarChart3, Clock, TrendingUp, DollarSign, Activity, List, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -413,7 +414,7 @@ function AllRequestsReport({ departments }: { departments: { id: string; name: s
                       <td className="py-2 pr-4 font-medium">{r.user.firstName} {r.user.lastName}</td>
                       <td className="py-2 pr-4">{r.leaveType.name}</td>
                       <td className="py-2 pr-4 text-slate-500 whitespace-nowrap">
-                        {format(new Date(r.startDate), "MMM d")} – {format(new Date(r.endDate), "MMM d, yyyy")}
+                        {format(parseLocalDate(r.startDate), "MMM d")} – {format(parseLocalDate(r.endDate), "MMM d, yyyy")}
                       </td>
                       <td className="py-2 pr-4 text-right tabular-nums">{parseFloat(r.totalBusinessDays).toFixed(1)}</td>
                       <td className="py-2 pr-4 text-slate-400 whitespace-nowrap">
