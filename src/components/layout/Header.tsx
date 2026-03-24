@@ -79,7 +79,7 @@ export function Header() {
           >
             <Menu className="h-5 w-5 text-slate-500" />
           </Button>
-          <h1 className="text-base font-semibold text-slate-900 truncate">
+          <h1 className="text-lg font-semibold text-slate-900 truncate">
             {pageTitle}
           </h1>
         </div>
