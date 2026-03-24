@@ -196,7 +196,7 @@ export default function DashboardPage() {
           <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
             {year} Leave Balances
           </h3>
-          <Link href="/requests/new" className="text-xs text-blue-600 hover:underline">
+          <Link href="/requests/new" className="inline-flex items-center py-2 text-xs text-blue-600 hover:underline">
             Request leave →
           </Link>
         </div>
@@ -226,7 +226,7 @@ export default function DashboardPage() {
           <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
             Recent Requests
           </h3>
-          <Link href="/requests/history" className="flex items-center gap-0.5 text-xs text-blue-600 hover:underline">
+          <Link href="/requests/history" className="inline-flex items-center gap-0.5 py-2 text-xs text-blue-600 hover:underline">
             View all <ArrowRight className="h-3 w-3" />
           </Link>
         </div>
