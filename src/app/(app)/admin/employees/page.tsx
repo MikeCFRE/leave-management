@@ -402,19 +402,19 @@ export default function EmployeesPage() {
           {[
             {
               role: "Employee",
-              description: "Can submit and manage their own leave requests, view their leave balances, and see their request history. Cannot see other employees' data.",
+              description: "Submit and track their own leave requests. View personal balances and history only.",
             },
             {
               role: "Manager",
-              description: "Everything an Employee can do, plus: review and approve/deny leave requests from their direct reports, view team leave calendars, and see department leave summaries.",
+              description: "Approve or deny leave for direct reports. View team calendar and department summaries.",
             },
             {
               role: "Admin",
-              description: "Everything a Manager can do, plus: manage all employees, configure departments and leave policies, view reports across the organisation, and access the audit log.",
+              description: "Manage employees, departments, and leave policies. Access reports and audit log.",
             },
             {
               role: "Super Admin",
-              description: "Full access to everything. Can manage all settings, override any policy, view all data, and manage Admin accounts. Typically the system owner only.",
+              description: "Unrestricted access. Manage all settings, override policies, and administer accounts.",
             },
           ].map(({ role, description }) => (
             <div key={role} className="flex gap-3">
