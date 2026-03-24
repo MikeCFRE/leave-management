@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter, DialogClose,
@@ -341,18 +340,12 @@ const RULE_TYPES = [
   { value: "balance_override", label: "Balance Override" },
 ];
 
-const PARAM_TEMPLATES: Record<string, string> = {
-  advance_notice: JSON.stringify(
-    { tiers: [{ min_days: 1, max_days: 2, notice_hours: 48 }, { min_days: 3, max_days: null, notice_hours: 168 }] },
-    null, 2
-  ),
-  consecutive_cap: JSON.stringify(
-    { max_consecutive_days: 7, min_gap_between_blocks_days: 14, max_long_blocks_per_year: 2, long_block_threshold_days: 5 },
-    null, 2
-  ),
-  coverage_min: JSON.stringify({ min_headcount: 2 }, null, 2),
-  blackout: JSON.stringify({ reason: "Company blackout period" }, null, 2),
-  balance_override: JSON.stringify({ allow_negative: false, max_override_days: 5 }, null, 2),
+const RULE_DESCRIPTIONS: Record<string, string> = {
+  advance_notice: "Requires employees to submit leave requests a minimum number of hours before the start date.",
+  consecutive_cap: "Limits how many consecutive days off an employee can take, and how many extended leave blocks per year.",
+  coverage_min: "Blocks leave approval if it would leave fewer than the required number of employees working at the same time.",
+  blackout: "Restricts leave requests during a period. For date-specific blackouts, use the Blackout Periods tab.",
+  balance_override: "Allows managers to approve leave that exceeds an employee's available balance by up to a set number of days.",
 };
 
 type PRForm = {
@@ -361,7 +354,20 @@ type PRForm = {
   priority: string;
   effectiveFrom: string;
   effectiveUntil: string;
-  parameters: string;
+  // advance_notice
+  noticeHours: string;
+  // consecutive_cap
+  maxConsecutiveDays: string;
+  minGapDays: string;
+  maxLongBlocksPerYear: string;
+  longBlockThresholdDays: string;
+  // coverage_min
+  minHeadcount: string;
+  // blackout
+  blackoutReason: string;
+  // balance_override
+  allowNegative: boolean;
+  maxOverrideDays: string;
 };
 
 const EMPTY_PR: PRForm = {
@@ -370,8 +376,80 @@ const EMPTY_PR: PRForm = {
   priority: "10",
   effectiveFrom: "",
   effectiveUntil: "",
-  parameters: PARAM_TEMPLATES.advance_notice,
+  noticeHours: "48",
+  maxConsecutiveDays: "7",
+  minGapDays: "14",
+  maxLongBlocksPerYear: "2",
+  longBlockThresholdDays: "5",
+  minHeadcount: "2",
+  blackoutReason: "",
+  allowNegative: false,
+  maxOverrideDays: "5",
 };
+
+function paramsFromRule(p: Record<string, unknown>): Partial<PRForm> {
+  return {
+    noticeHours: String((p?.tiers as Array<{ notice_hours: number }>)?.[0]?.notice_hours ?? 48),
+    maxConsecutiveDays: String((p?.max_consecutive_days as number) ?? 7),
+    minGapDays: String((p?.min_gap_between_blocks_days as number) ?? 14),
+    maxLongBlocksPerYear: String((p?.max_long_blocks_per_year as number) ?? 2),
+    longBlockThresholdDays: String((p?.long_block_threshold_days as number) ?? 5),
+    minHeadcount: String((p?.min_headcount as number) ?? 2),
+    blackoutReason: String(p?.reason ?? ""),
+    allowNegative: Boolean(p?.allow_negative),
+    maxOverrideDays: String((p?.max_override_days as number) ?? 5),
+  };
+}
+
+function buildParams(form: PRForm): Record<string, unknown> {
+  switch (form.ruleType) {
+    case "advance_notice":
+      return { tiers: [{ min_days: 1, max_days: null, notice_hours: parseInt(form.noticeHours) || 48 }] };
+    case "consecutive_cap":
+      return {
+        max_consecutive_days: parseInt(form.maxConsecutiveDays) || 7,
+        min_gap_between_blocks_days: parseInt(form.minGapDays) || 14,
+        max_long_blocks_per_year: parseInt(form.maxLongBlocksPerYear) || 2,
+        long_block_threshold_days: parseInt(form.longBlockThresholdDays) || 5,
+      };
+    case "coverage_min":
+      return { min_headcount: parseInt(form.minHeadcount) || 2 };
+    case "blackout":
+      return { reason: form.blackoutReason.trim() || "Company blackout period" };
+    case "balance_override":
+      return { allow_negative: form.allowNegative, max_override_days: parseInt(form.maxOverrideDays) || 5 };
+    default:
+      return {};
+  }
+}
+
+function ruleSummary(rule: PolicyRule): string {
+  const p = rule.parameters as Record<string, unknown>;
+  switch (rule.ruleType) {
+    case "advance_notice": {
+      const h = (p?.tiers as Array<{ notice_hours: number }>)?.[0]?.notice_hours ?? 48;
+      return `${h} hours advance notice required`;
+    }
+    case "consecutive_cap": {
+      const max = (p?.max_consecutive_days as number) ?? 7;
+      return `Max ${max} consecutive days per block`;
+    }
+    case "coverage_min": {
+      const min = (p?.min_headcount as number) ?? 2;
+      return `Minimum ${min} employee${min !== 1 ? "s" : ""} must remain working`;
+    }
+    case "blackout": {
+      const reason = (p?.reason as string) ?? "";
+      return reason || "Blackout restriction";
+    }
+    case "balance_override": {
+      const max = (p?.max_override_days as number) ?? 5;
+      return `Up to ${max} day${max !== 1 ? "s" : ""} over balance allowed`;
+    }
+    default:
+      return "";
+  }
+}
 
 function PolicyRuleDialog({
   mode, rule, departments, open, onClose,
@@ -385,16 +463,16 @@ function PolicyRuleDialog({
   const [form, setForm] = useState<PRForm>(() =>
     rule
       ? {
+          ...EMPTY_PR,
           ruleType: rule.ruleType,
           departmentId: rule.departmentId ?? "",
           priority: rule.priority.toString(),
           effectiveFrom: rule.effectiveFrom.toString().slice(0, 10),
           effectiveUntil: rule.effectiveUntil ? rule.effectiveUntil.toString().slice(0, 10) : "",
-          parameters: JSON.stringify(rule.parameters, null, 2),
+          ...paramsFromRule(rule.parameters as Record<string, unknown>),
         }
       : EMPTY_PR
   );
-  const [paramError, setParamError] = useState("");
 
   const utils = trpc.useUtils();
 
@@ -418,27 +496,18 @@ function PolicyRuleDialog({
 
   function handleRuleTypeChange(v: string | null) {
     if (!v) return;
-    setForm((p) => ({ ...p, ruleType: v, parameters: PARAM_TEMPLATES[v] ?? "{}" }));
-    setParamError("");
+    setForm((p) => ({ ...p, ruleType: v }));
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(form.parameters);
-    } catch {
-      setParamError("Invalid JSON — please fix before saving.");
-      return;
-    }
-    setParamError("");
     const payload = {
       ruleType: form.ruleType as "advance_notice" | "consecutive_cap" | "coverage_min" | "blackout" | "balance_override",
       departmentId: form.departmentId || undefined,
       priority: parseInt(form.priority) || 10,
       effectiveFrom: form.effectiveFrom,
       effectiveUntil: form.effectiveUntil || undefined,
-      parameters: parsed,
+      parameters: buildParams(form),
     };
     if (mode === "create") {
       create.mutate(payload);
@@ -462,18 +531,20 @@ function PolicyRuleDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 space-y-4">
+            {/* Rule description */}
+            {RULE_DESCRIPTIONS[form.ruleType] && (
+              <p className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                {RULE_DESCRIPTIONS[form.ruleType]}
+              </p>
+            )}
+
+            {/* Rule type + Department */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="pr-type">Rule Type</Label>
-                <Select
-                  value={form.ruleType}
-                  onValueChange={handleRuleTypeChange}
-                  disabled={mode === "edit"}
-                >
-                  <SelectTrigger id="pr-type" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
+                <Select value={form.ruleType} onValueChange={handleRuleTypeChange} disabled={mode === "edit"}>
+                  <SelectTrigger id="pr-type" className="w-full"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {RULE_TYPES.map(({ value, label }) => (
                       <SelectItem key={value} value={value}>{label}</SelectItem>
@@ -482,11 +553,9 @@ function PolicyRuleDialog({
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="pr-dept">Department <span className="font-normal text-slate-400">(optional)</span></Label>
-                <Select value={form.departmentId} onValueChange={(v) => setForm((p) => ({ ...p, departmentId: v === "_all" ? "" : (v ?? "") }))}>
-                  <SelectTrigger id="pr-dept" className="w-full">
-                    <SelectValue placeholder="All departments" />
-                  </SelectTrigger>
+                <Label htmlFor="pr-dept">Department <span className="font-normal text-slate-400">(opt)</span></Label>
+                <Select value={form.departmentId || "_all"} onValueChange={(v) => setForm((p) => ({ ...p, departmentId: v === "_all" ? "" : (v ?? "") }))}>
+                  <SelectTrigger id="pr-dept" className="w-full"><SelectValue placeholder="All departments" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="_all">All departments</SelectItem>
                     {departments.map((d) => (
@@ -496,12 +565,9 @@ function PolicyRuleDialog({
                 </Select>
               </div>
             </div>
+
+            {/* Dates + Priority */}
             <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="pr-priority">Priority</Label>
-                <Input id="pr-priority" type="number" min={1} step={1} value={form.priority}
-                  onChange={(e) => setForm((p) => ({ ...p, priority: e.target.value }))} />
-              </div>
               <div className="space-y-1.5">
                 <Label htmlFor="pr-from">Effective From</Label>
                 <Input id="pr-from" type="date" value={form.effectiveFrom} required
@@ -512,18 +578,97 @@ function PolicyRuleDialog({
                 <Input id="pr-until" type="date" value={form.effectiveUntil}
                   onChange={(e) => setForm((p) => ({ ...p, effectiveUntil: e.target.value }))} />
               </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pr-priority">Priority</Label>
+                <Input id="pr-priority" type="number" min={1} step={1} value={form.priority}
+                  onChange={(e) => setForm((p) => ({ ...p, priority: e.target.value }))} />
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="pr-params">Parameters (JSON)</Label>
-              <Textarea
-                id="pr-params"
-                value={form.parameters}
-                onChange={(e) => { setForm((p) => ({ ...p, parameters: e.target.value })); setParamError(""); }}
-                className="font-mono text-xs"
-                rows={8}
-              />
-              {paramError && <p className="text-xs text-red-500">{paramError}</p>}
-            </div>
+
+            {/* advance_notice */}
+            {form.ruleType === "advance_notice" && (
+              <div className="space-y-1.5">
+                <Label htmlFor="pr-notice-hours">Required advance notice (hours)</Label>
+                <Input id="pr-notice-hours" type="number" min={1} value={form.noticeHours}
+                  onChange={(e) => setForm((p) => ({ ...p, noticeHours: e.target.value }))} />
+                <p className="text-xs text-slate-400">Example: 48 = employees must submit requests at least 2 days before the start date.</p>
+              </div>
+            )}
+
+            {/* consecutive_cap */}
+            {form.ruleType === "consecutive_cap" && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="pr-max-consec">Max consecutive days</Label>
+                    <Input id="pr-max-consec" type="number" min={1} value={form.maxConsecutiveDays}
+                      onChange={(e) => setForm((p) => ({ ...p, maxConsecutiveDays: e.target.value }))} />
+                    <p className="text-xs text-slate-400">Longest single leave block allowed.</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="pr-min-gap">Min gap between blocks (days)</Label>
+                    <Input id="pr-min-gap" type="number" min={1} value={form.minGapDays}
+                      onChange={(e) => setForm((p) => ({ ...p, minGapDays: e.target.value }))} />
+                    <p className="text-xs text-slate-400">Mandatory rest between two leave blocks.</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="pr-long-thresh">Long block threshold (days)</Label>
+                    <Input id="pr-long-thresh" type="number" min={1} value={form.longBlockThresholdDays}
+                      onChange={(e) => setForm((p) => ({ ...p, longBlockThresholdDays: e.target.value }))} />
+                    <p className="text-xs text-slate-400">A block is &ldquo;long&rdquo; if it exceeds this many days.</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="pr-max-long">Max long blocks per year</Label>
+                    <Input id="pr-max-long" type="number" min={1} value={form.maxLongBlocksPerYear}
+                      onChange={(e) => setForm((p) => ({ ...p, maxLongBlocksPerYear: e.target.value }))} />
+                    <p className="text-xs text-slate-400">How many extended blocks are allowed per year.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* coverage_min */}
+            {form.ruleType === "coverage_min" && (
+              <div className="space-y-1.5">
+                <Label htmlFor="pr-min-head">Minimum employees required at work</Label>
+                <Input id="pr-min-head" type="number" min={1} value={form.minHeadcount}
+                  onChange={(e) => setForm((p) => ({ ...p, minHeadcount: e.target.value }))} />
+                <p className="text-xs text-slate-400">Leave will be blocked if fewer than this many employees would be working at the same time.</p>
+              </div>
+            )}
+
+            {/* blackout */}
+            {form.ruleType === "blackout" && (
+              <div className="space-y-1.5">
+                <Label htmlFor="pr-blackout-reason">Reason</Label>
+                <Input id="pr-blackout-reason" value={form.blackoutReason}
+                  onChange={(e) => setForm((p) => ({ ...p, blackoutReason: e.target.value }))}
+                  placeholder="e.g. Peak season, Annual close" />
+              </div>
+            )}
+
+            {/* balance_override */}
+            {form.ruleType === "balance_override" && (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="pr-max-override">Max extra days over balance</Label>
+                  <Input id="pr-max-override" type="number" min={0} value={form.maxOverrideDays}
+                    onChange={(e) => setForm((p) => ({ ...p, maxOverrideDays: e.target.value }))} />
+                  <p className="text-xs text-slate-400">Managers can approve up to this many days beyond the employee&apos;s available balance.</p>
+                </div>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.allowNegative}
+                    onChange={(e) => setForm((p) => ({ ...p, allowNegative: e.target.checked }))}
+                    className="h-4 w-4 rounded border-slate-300"
+                  />
+                  Allow negative balance (employee can accrue &ldquo;leave debt&rdquo;)
+                </label>
+              </div>
+            )}
           </div>
 
           <DialogFooter className="mt-4">
@@ -646,6 +791,9 @@ function PolicyRulesTab({ departments }: { departments: Department[] }) {
                   From {rule.effectiveFrom.toString().slice(0, 10)}
                   {rule.effectiveUntil ? ` → ${rule.effectiveUntil.toString().slice(0, 10)}` : ""}
                 </p>
+                {ruleSummary(rule) && (
+                  <p className="mt-0.5 text-xs text-slate-400 italic">{ruleSummary(rule)}</p>
+                )}
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <Button
