@@ -497,11 +497,20 @@ export const adminRouter = router({
         ),
       });
       if (!target) throw new TRPCError({ code: "NOT_FOUND" });
-      if (target.employmentStatus !== "terminated") {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Only terminated employees can be permanently deleted.",
-        });
+
+      // Cancel any pending leave requests before deleting
+      const pendingReqs = await db.query.leaveRequests.findMany({
+        where: and(
+          eq(leaveRequests.userId, input.userId),
+          eq(leaveRequests.status, "pending")
+        ),
+        columns: { id: true },
+      });
+      if (pendingReqs.length > 0) {
+        await db
+          .update(leaveRequests)
+          .set({ status: "cancelled", updatedAt: new Date() })
+          .where(inArray(leaveRequests.id, pendingReqs.map((r) => r.id)));
       }
 
       await db.delete(users).where(eq(users.id, input.userId));

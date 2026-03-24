@@ -578,27 +578,28 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
 
       {/* Danger zone */}
       <Separator />
-      {user.employmentStatus !== "terminated" ? (
-        <div className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-          <div>
-            <p className="text-sm font-medium text-red-800">Deactivate Account</p>
-            <p className="mt-0.5 text-xs text-red-600">
-              Terminates the account and cancels all pending requests.
-            </p>
+      <div className="space-y-3">
+        {user.employmentStatus !== "terminated" && (
+          <div className="flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-orange-800">Deactivate Account</p>
+              <p className="mt-0.5 text-xs text-orange-600">
+                Terminates the account and cancels all pending requests.
+              </p>
+            </div>
+            <Button
+              variant="destructive" size="sm"
+              onClick={() => setDeactivateOpen(true)}
+            >
+              Deactivate
+            </Button>
           </div>
-          <Button
-            variant="destructive" size="sm"
-            onClick={() => setDeactivateOpen(true)}
-          >
-            Deactivate
-          </Button>
-        </div>
-      ) : (
+        )}
         <div className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3">
           <div>
             <p className="text-sm font-medium text-red-800">Delete Employee</p>
             <p className="mt-0.5 text-xs text-red-600">
-              Permanently remove this terminated employee and all their data.
+              Permanently remove this employee and all their data from the system.
             </p>
           </div>
           <Button
@@ -608,7 +609,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
             Delete Permanently
           </Button>
         </div>
-      )}
+      </div>
 
       {/* Dialogs */}
       <AdjustBalanceDialog
