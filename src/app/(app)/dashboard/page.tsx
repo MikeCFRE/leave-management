@@ -193,7 +193,7 @@ export default function DashboardPage() {
       {/* Leave balances */}
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
             {year} Leave Balances
           </h3>
           <Link href="/requests/new" className="text-xs text-blue-600 hover:underline">
@@ -223,7 +223,7 @@ export default function DashboardPage() {
       {/* Recent requests */}
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
             Recent Requests
           </h3>
           <Link href="/requests/history" className="flex items-center gap-0.5 text-xs text-blue-600 hover:underline">
