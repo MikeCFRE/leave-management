@@ -394,6 +394,36 @@ export default function EmployeesPage() {
         onClose={() => setCreateOpen(false)}
         departments={departments}
       />
+
+      {/* Role permission reference */}
+      <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Role Permissions Reference</p>
+        <div className="space-y-2.5">
+          {[
+            {
+              role: "Employee",
+              description: "Can submit and manage their own leave requests, view their leave balances, and see their request history. Cannot see other employees' data.",
+            },
+            {
+              role: "Manager",
+              description: "Everything an Employee can do, plus: review and approve/deny leave requests from their direct reports, view team leave calendars, and see department leave summaries.",
+            },
+            {
+              role: "Admin",
+              description: "Everything a Manager can do, plus: manage all employees, configure departments and leave policies, view reports across the organisation, and access the audit log.",
+            },
+            {
+              role: "Super Admin",
+              description: "Full access to everything. Can manage all settings, override any policy, view all data, and manage Admin accounts. Typically the system owner only.",
+            },
+          ].map(({ role, description }) => (
+            <div key={role} className="flex gap-3">
+              <span className="mt-0.5 w-24 shrink-0 text-xs font-semibold text-slate-700">{role}</span>
+              <span className="text-xs text-slate-500">{description}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
