@@ -123,7 +123,7 @@ export function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   return (
     <div className="flex h-full flex-col">
       {/* Logo / Brand */}
-      <div className="flex h-14 items-center gap-2 border-b border-white/10 px-4">
+      <Link href="/dashboard" className="flex h-14 items-center gap-2 border-b border-white/10 px-4 hover:bg-white/5 transition-colors">
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-500">
           <Briefcase className="h-4 w-4 text-white" />
         </div>
@@ -131,7 +131,7 @@ export function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
           <p className="truncate text-sm font-semibold text-white">Leave Manager</p>
           <p className="truncate text-xs text-slate-400">5th Coast Properties</p>
         </div>
-      </div>
+      </Link>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
