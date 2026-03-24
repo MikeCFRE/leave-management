@@ -132,7 +132,7 @@ export function Header() {
 
       {/* Mobile sidebar Sheet */}
       <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-        <SheetContent side="left" className="w-56 p-0">
+        <SheetContent side="left" className="w-56 p-0 bg-slate-950 border-r-0">
           <SheetTitle className="sr-only">Navigation</SheetTitle>
           <SidebarContent onNavClick={() => setMobileNavOpen(false)} />
         </SheetContent>

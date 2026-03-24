@@ -95,12 +95,12 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
       className={cn(
         "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
         isActive
-          ? "bg-blue-50 text-blue-700"
-          : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+          ? "bg-blue-600 text-white"
+          : "text-slate-400 hover:bg-white/10 hover:text-white"
       )}
     >
       <item.icon
-        className={cn("h-4 w-4 flex-shrink-0", isActive ? "text-blue-600" : "text-slate-400")}
+        className={cn("h-4 w-4 flex-shrink-0", isActive ? "text-white" : "text-slate-500")}
       />
       <span className="flex-1">{item.label}</span>
       {item.badge != null && item.badge > 0 && (
@@ -123,12 +123,12 @@ export function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   return (
     <div className="flex h-full flex-col">
       {/* Logo / Brand */}
-      <div className="flex h-14 items-center gap-2 border-b border-slate-200 px-4">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600">
+      <div className="flex h-14 items-center gap-2 border-b border-white/10 px-4">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-500">
           <Briefcase className="h-4 w-4 text-white" />
         </div>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-slate-900">Leave Manager</p>
+          <p className="truncate text-sm font-semibold text-white">Leave Manager</p>
           <p className="truncate text-xs text-slate-400">5th Coast Properties</p>
         </div>
       </div>
@@ -140,7 +140,7 @@ export function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
           return (
             <div key={i}>
               {section.title && (
-                <p className="mb-1 px-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                <p className="mb-1 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
                   {section.title}
                 </p>
               )}
@@ -156,8 +156,8 @@ export function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
 
       {/* User info footer */}
       {session?.user && (
-        <div className="border-t border-slate-200 px-4 py-3">
-          <p className="truncate text-sm font-medium text-slate-900">
+        <div className="border-t border-white/10 px-4 py-3">
+          <p className="truncate text-sm font-medium text-white">
             {session.user.name}
           </p>
           <p className="truncate text-xs capitalize text-slate-400">
@@ -176,7 +176,7 @@ export function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
 export function Sidebar() {
   return (
     <aside className="hidden lg:flex lg:flex-shrink-0">
-      <div className="flex w-56 flex-col border-r border-slate-200 bg-white">
+      <div className="flex w-56 flex-col bg-slate-950">
         <SidebarContent />
       </div>
     </aside>
