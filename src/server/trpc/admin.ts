@@ -831,13 +831,13 @@ export const adminRouter = router({
         userId: ctx.user.id,
         action: AUDIT_ACTIONS.POLICY_UPDATED,
         entityType: "policy_rule",
-        entityId: newRule.id,
+        entityId: existing.id,
         oldValues: {
           ruleId: existing.id,
           parameters: existing.parameters,
         },
         newValues: {
-          ruleId: newRule.id,
+          ruleId: existing.id,
           parameters: input.parameters,
           effectiveFrom: input.effectiveFrom,
         },
