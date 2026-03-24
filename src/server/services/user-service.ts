@@ -114,7 +114,7 @@ export async function sendPasswordResetEmail(email: string): Promise<void> {
 
   const resend = new Resend(process.env.RESEND_API_KEY);
   await resend.emails.send({
-    from: process.env.EMAIL_FROM ?? "noreply@categoryfiveventures.com",
+    from: process.env.EMAIL_FROM ?? "noreply@5thcoastproperties.com",
     to: email,
     subject: "Reset your password — Leave Management",
     html: `
@@ -130,7 +130,7 @@ export async function sendPasswordResetEmail(email: string): Promise<void> {
         </p>
         <p style="color: #94a3b8; font-size: 14px;">This link expires in 1 hour. If you did not request a password reset, you can ignore this email.</p>
         <hr style="border-color: #e2e8f0; margin: 32px 0;" />
-        <p style="color: #94a3b8; font-size: 12px;">Category Five Ventures — Leave Management System</p>
+        <p style="color: #94a3b8; font-size: 12px;">5th Coast Properties — Leave Management System</p>
       </div>
     `,
   });

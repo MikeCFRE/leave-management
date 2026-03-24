@@ -67,7 +67,7 @@ export default function LoginPage() {
         </div>
         <CardTitle className="text-2xl text-center">Sign in</CardTitle>
         <CardDescription className="text-center">
-          Category Five Ventures — Leave Management
+          5th Coast Properties — Leave Management
         </CardDescription>
       </CardHeader>
 
@@ -86,7 +86,7 @@ export default function LoginPage() {
               type="email"
               autoComplete="email"
               required
-              placeholder="you@categoryfiveventures.com"
+              placeholder="you@5thcoastproperties.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={loading}

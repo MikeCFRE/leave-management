@@ -71,7 +71,7 @@ function RequestResetForm() {
               type="email"
               required
               autoComplete="email"
-              placeholder="you@categoryfiveventures.com"
+              placeholder="you@5thcoastproperties.com"
               disabled={pending}
             />
           </div>

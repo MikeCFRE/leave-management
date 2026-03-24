@@ -57,7 +57,7 @@ export function EmailLayout({ children, previewText }: EmailLayoutProps) {
                       <td style={{ backgroundColor: BRAND_COLOR, padding: "20px 32px" }}>
                         <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "#bfdbfe",
                           textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                          Category Five Ventures
+                          5th Coast Properties
                         </p>
                         <p style={{ margin: "2px 0 0", fontSize: 20, fontWeight: 700, color: "#ffffff" }}>
                           Leave Management
@@ -75,7 +75,7 @@ export function EmailLayout({ children, previewText }: EmailLayoutProps) {
                       <td style={{ borderTop: `1px solid ${BORDER}`, padding: "16px 32px",
                         backgroundColor: "#f8fafc" }}>
                         <p style={{ margin: 0, fontSize: 12, color: TEXT_MUTED, textAlign: "center" }}>
-                          Category Five Ventures · Leave Management System
+                          5th Coast Properties · Leave Management System
                         </p>
                         <p style={{ margin: "4px 0 0", fontSize: 12, color: TEXT_MUTED, textAlign: "center" }}>
                           Manage notification preferences in your profile settings.
