@@ -114,7 +114,7 @@ function CreateEmployeeDialog({
             <DialogHeader>
               <DialogTitle>Create Employee</DialogTitle>
               <DialogDescription>
-                A temporary password will be generated. Share it securely with the new employee.
+                An invitation email with login instructions will be sent to the employee automatically.
               </DialogDescription>
             </DialogHeader>
 
@@ -189,10 +189,11 @@ function CreateEmployeeDialog({
             <DialogHeader>
               <DialogTitle>Employee Created</DialogTitle>
               <DialogDescription>
-                Share this temporary password securely. The employee will be prompted to change it on first login.
+                A login invitation has been sent to <strong>{form.email}</strong> with their temporary password and sign-in link.
               </DialogDescription>
             </DialogHeader>
             <div className="mt-4 space-y-3">
+              <p className="text-xs text-slate-500">If the email doesn&apos;t arrive, share this temporary password directly:</p>
               <Label>Temporary Password</Label>
               <div className="flex gap-2">
                 <Input value={tempPassword} readOnly className="font-mono" />

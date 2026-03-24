@@ -15,7 +15,7 @@ import {
   policyRules,
   users,
 } from "@/server/db/schema";
-import { hashPassword } from "@/server/services/user-service";
+import { hashPassword, sendWelcomeEmail } from "@/server/services/user-service";
 import { appendAuditLog, AUDIT_ACTIONS } from "@/server/services/audit-service";
 import { getUserById } from "@/server/services/user-service";
 import type { UserRole } from "@/lib/types";
@@ -280,8 +280,18 @@ export const adminRouter = router({
         },
       });
 
-      // Return temp password so admin can communicate it to the new employee.
-      // Notifications (welcome email) handled in Sprint 9.
+      // Send welcome email with login instructions. Fire-and-forget —
+      // admin still sees the temp password in the UI as a fallback.
+      try {
+        await sendWelcomeEmail({
+          email: input.email,
+          firstName: input.firstName,
+          tempPassword,
+        });
+      } catch {
+        // Non-critical — admin has the temp password on screen
+      }
+
       return { userId: newUser.id, tempPassword };
     }),
 

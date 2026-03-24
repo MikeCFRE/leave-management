@@ -100,6 +100,55 @@ export async function updatePassword(
 // Password reset email
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Welcome email for new employees
+// ---------------------------------------------------------------------------
+
+export async function sendWelcomeEmail(params: {
+  email: string;
+  firstName: string;
+  tempPassword: string;
+}): Promise<void> {
+  const { Resend } = await import("resend");
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+  await resend.emails.send({
+    from: process.env.EMAIL_FROM ?? "noreply@5thcoastproperties.com",
+    to: params.email,
+    subject: "Your Leave Management account is ready",
+    html: `
+      <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 0;">
+        <div style="background: #2563eb; padding: 24px 32px; border-radius: 8px 8px 0 0;">
+          <p style="margin: 0; font-size: 11px; font-weight: 600; color: #bfdbfe; text-transform: uppercase; letter-spacing: 0.08em;">5th Coast Properties</p>
+          <p style="margin: 2px 0 0; font-size: 18px; font-weight: 700; color: #ffffff;">Leave Management</p>
+        </div>
+        <div style="background: #ffffff; padding: 32px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 8px 8px;">
+          <h2 style="margin: 0 0 8px; color: #1e293b; font-size: 20px;">Welcome, ${params.firstName}!</h2>
+          <p style="color: #475569; margin: 0 0 24px;">Your Leave Management account has been created. Use the details below to sign in for the first time.</p>
+          <table style="width: 100%; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; margin-bottom: 24px;">
+            <tr>
+              <td style="padding: 10px 14px; font-size: 13px; font-weight: 600; color: #64748b; background: #f8fafc; width: 36%;">Login URL</td>
+              <td style="padding: 10px 14px; font-size: 14px; color: #1e293b;"><a href="${appUrl}/login" style="color: #2563eb;">${appUrl}/login</a></td>
+            </tr>
+            <tr style="border-top: 1px solid #e2e8f0;">
+              <td style="padding: 10px 14px; font-size: 13px; font-weight: 600; color: #64748b; background: #f8fafc;">Email</td>
+              <td style="padding: 10px 14px; font-size: 14px; color: #1e293b;">${params.email}</td>
+            </tr>
+            <tr style="border-top: 1px solid #e2e8f0;">
+              <td style="padding: 10px 14px; font-size: 13px; font-weight: 600; color: #64748b; background: #f8fafc;">Temporary password</td>
+              <td style="padding: 10px 14px; font-size: 14px; font-family: monospace; color: #1e293b;">${params.tempPassword}</td>
+            </tr>
+          </table>
+          <p style="color: #475569; margin: 0 0 8px;">You will be asked to set a new password the first time you sign in.</p>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+          <p style="color: #94a3b8; font-size: 12px; margin: 0;">5th Coast Properties — Leave Management System</p>
+        </div>
+      </div>
+    `,
+  });
+}
+
 export async function sendPasswordResetEmail(email: string): Promise<void> {
   const { Resend } = await import("resend");
   const { createPasswordResetToken } = await import("@/lib/password");
