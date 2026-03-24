@@ -8,13 +8,6 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -58,23 +51,29 @@ export default function LoginPage() {
   }
 
   return (
-    <Card className="shadow-sm">
-      <CardHeader className="space-y-1 pb-4">
-        <div className="flex justify-center mb-2">
-          <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center">
-            <span className="text-white font-bold text-lg">L</span>
+    <div className="overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-slate-900/5">
+      {/* Brand bar */}
+      <div className="bg-blue-600 px-8 py-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
+            <span className="text-sm font-bold text-white">5C</span>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-blue-200">
+              5th Coast Properties
+            </p>
+            <p className="text-base font-semibold text-white">Leave Management</p>
           </div>
         </div>
-        <CardTitle className="text-2xl text-center">Sign in</CardTitle>
-        <CardDescription className="text-center">
-          5th Coast Properties — Leave Management
-        </CardDescription>
-      </CardHeader>
+      </div>
 
-      <CardContent>
+      <div className="px-8 py-7">
+        <h1 className="mb-1 text-xl font-semibold text-slate-900">Welcome back</h1>
+        <p className="mb-6 text-sm text-slate-500">Sign in to your account to continue.</p>
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2.5 text-sm text-red-700">
               {error}
             </div>
           )}
@@ -98,8 +97,7 @@ export default function LoginPage() {
               <Label htmlFor="password">Password</Label>
               <Link
                 href="/reset-password"
-                className="text-xs text-blue-600 hover:underline"
-                tabIndex={-1}
+                className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline"
               >
                 Forgot password?
               </Link>
@@ -132,12 +130,12 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" className="w-full h-10 text-sm font-semibold" disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Sign in
           </Button>
         </form>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
