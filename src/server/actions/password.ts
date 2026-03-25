@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { auth } from "@/server/auth";
+import { auth, unstable_update } from "@/server/auth";
 import {
   getUserByEmail,
   getUserById,
@@ -90,6 +90,7 @@ export async function changePassword(
   if (!user) redirect("/login");
 
   await updatePassword(user.id, newPassword);
+  await unstable_update({ mustChangePassword: false });
 
   redirect("/dashboard");
 }

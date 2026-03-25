@@ -114,7 +114,7 @@ export async function sendWelcomeEmail(params: {
   firstName: string;
   tempPassword: string;
 }): Promise<void> {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
   const loginUrl = `${appUrl}/login`;
 
   const html =
@@ -144,7 +144,7 @@ export async function sendPasswordResetEmail(email: string): Promise<void> {
   if (!user || user.deletedAt) return;
 
   const token = createPasswordResetToken(email, user.lastPasswordChange);
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
   const resetUrl = `${appUrl}/reset-password?token=${token}`;
 
   await resend.emails.send({
