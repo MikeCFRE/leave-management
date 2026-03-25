@@ -3,10 +3,20 @@
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { parseLocalDate } from "@/lib/date-utils";
-import { Loader2, BarChart3, Clock, TrendingUp, DollarSign, Activity, List, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, BarChart3, Clock, TrendingUp, DollarSign, Activity, List, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -331,12 +341,25 @@ function AllRequestsReport({ departments }: { departments: { id: string; name: s
   const [statusFilter, setStatusFilter] = useState("");
   const [deptFilter, setDeptFilter] = useState("");
   const [page, setPage] = useState(1);
+  const [cancelTargetId, setCancelTargetId] = useState<string | null>(null);
 
+  const utils = trpc.useUtils();
   const { data, isLoading } = trpc.admin.listAllLeaveRequests.useQuery({
     status: (statusFilter || undefined) as "pending" | "approved" | "denied" | "cancelled" | "expired" | "draft" | undefined,
     departmentId: deptFilter || undefined,
     page,
     limit: ALL_REQ_PAGE_SIZE,
+  });
+
+  const cancelMutation = trpc.admin.cancelLeaveRequest.useMutation({
+    onSuccess: () => {
+      toast.success("Leave request cancelled and employee notified.");
+      setCancelTargetId(null);
+      utils.admin.listAllLeaveRequests.invalidate();
+    },
+    onError: (err) => {
+      toast.error(err.message ?? "Failed to cancel request.");
+    },
   });
 
   const items = data?.items ?? [];
@@ -347,8 +370,39 @@ function AllRequestsReport({ departments }: { departments: { id: string; name: s
     return (v: string | null) => { setter(v === "_all" ? "" : (v ?? "")); setPage(1); };
   }
 
+  const cancelTarget = items.find((r) => r.id === cancelTargetId);
+
   return (
     <div className="space-y-4">
+      <Dialog open={!!cancelTargetId} onOpenChange={(o: boolean) => { if (!o) setCancelTargetId(null); }}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Cancel approved leave?</DialogTitle>
+            <DialogDescription>
+              {cancelTarget && (
+                <>
+                  This will cancel the approved{" "}
+                  <strong>{(cancelTarget as typeof cancelTarget & { leaveType: { name: string } }).leaveType.name}</strong> leave for{" "}
+                  <strong>{(cancelTarget as typeof cancelTarget & { user: { firstName: string; lastName: string } }).user.firstName} {(cancelTarget as typeof cancelTarget & { user: { firstName: string; lastName: string } }).user.lastName}</strong>{" "}
+                  ({format(parseLocalDate(cancelTarget.startDate.toString()), "MMM d")} – {format(parseLocalDate(cancelTarget.endDate.toString()), "MMM d, yyyy")}).
+                  The employee will be notified by email and their balance will be restored.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>Keep</DialogClose>
+            <Button
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => cancelTargetId && cancelMutation.mutate({ requestId: cancelTargetId })}
+              disabled={cancelMutation.isPending}
+            >
+              Cancel Leave
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <Select value={statusFilter || "_all"} onValueChange={handleFilter(setStatusFilter)}>
@@ -400,7 +454,8 @@ function AllRequestsReport({ departments }: { departments: { id: string; name: s
                   <th className="pb-2 pr-4 text-left">Dates</th>
                   <th className="pb-2 pr-4 text-right">Days</th>
                   <th className="pb-2 pr-4 text-left">Submitted</th>
-                  <th className="pb-2 text-left">Status</th>
+                  <th className="pb-2 pr-4 text-left">Status</th>
+                  <th className="pb-2 text-left"></th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -420,10 +475,23 @@ function AllRequestsReport({ departments }: { departments: { id: string; name: s
                       <td className="py-2 pr-4 text-slate-400 whitespace-nowrap">
                         {r.submittedAt ? format(new Date(r.submittedAt), "MMM d, yyyy") : "—"}
                       </td>
-                      <td className="py-2">
+                      <td className="py-2 pr-4">
                         <Badge variant={STATUS_VARIANT[r.status] ?? "outline"} className="text-xs capitalize">
                           {r.status}
                         </Badge>
+                      </td>
+                      <td className="py-2">
+                        {r.status === "approved" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => setCancelTargetId(r.id)}
+                            title="Cancel this approved leave"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   );

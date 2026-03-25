@@ -15,6 +15,7 @@ import {
   OverrideDigestEmail,
   type OverrideDigestEntry,
 } from "@/lib/email-templates/override-digest";
+import { RequestCancelledByAdminEmail } from "@/lib/email-templates/request-cancelled-by-admin";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -527,6 +528,69 @@ export async function notifyRequestCancelledByEmployee(requestId: string): Promi
       title: `Leave request cancelled by ${employeeName}`,
       body: `${employeeName} cancelled their approved ${request.leaveType.name} leave (${request.startDate} – ${request.endDate}).`,
       link: approvalsUrl,
+    });
+  }
+}
+
+/**
+ * Notify the employee when an admin cancels their approved leave request.
+ */
+export async function notifyAdminCancelledRequest(
+  requestId: string,
+  adminId: string,
+  reason?: string
+): Promise<void> {
+  const request = await db.query.leaveRequests.findFirst({
+    where: eq(leaveRequests.id, requestId),
+    with: {
+      user: true,
+      leaveType: { columns: { id: true, name: true } },
+    },
+  });
+
+  if (!request) return;
+
+  const admin = await db.query.users.findFirst({
+    where: eq(users.id, adminId),
+  });
+
+  const channel = getChannel(
+    request.user.notificationPreferences as NotificationPreferences | null,
+    "request_cancelled"
+  );
+
+  const dashboardUrl = `${APP_URL}/requests/${requestId}`;
+  const employeeName = `${request.user.firstName} ${request.user.lastName}`;
+  const adminName = admin ? `${admin.firstName} ${admin.lastName}` : "An administrator";
+
+  if (channel === "email" || channel === "both") {
+    const html = renderEmail(
+      React.createElement(RequestCancelledByAdminEmail, {
+        employeeName,
+        leaveType: request.leaveType.name,
+        startDate: request.startDate,
+        endDate: request.endDate,
+        totalDays: parseFloat(request.totalBusinessDays),
+        adminName,
+        reason,
+        dashboardUrl,
+      })
+    );
+
+    await sendEmail({
+      to: request.user.email,
+      subject: `Your approved leave has been cancelled`,
+      html,
+    });
+  }
+
+  if (channel === "in_app" || channel === "both") {
+    await createInAppNotification({
+      userId: request.user.id,
+      type: "request_cancelled",
+      title: "Approved leave cancelled",
+      body: `Your approved ${request.leaveType.name} leave (${request.startDate} – ${request.endDate}) has been cancelled by an administrator.`,
+      link: dashboardUrl,
     });
   }
 }

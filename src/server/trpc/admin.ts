@@ -17,6 +17,7 @@ import {
 } from "@/server/db/schema";
 import { hashPassword, sendWelcomeEmail } from "@/server/services/user-service";
 import { appendAuditLog, AUDIT_ACTIONS } from "@/server/services/audit-service";
+import { notifyAdminCancelledRequest } from "@/server/services/notification-service";
 import { getUserById } from "@/server/services/user-service";
 import type { UserRole } from "@/lib/types";
 import { formatDate } from "@/lib/date-utils";
@@ -1015,6 +1016,79 @@ export const adminRouter = router({
 
       const total = countResult[0]?.count ?? 0;
       return { items, total, page, pages: Math.ceil(total / limit) };
+    }),
+
+  // =========================================================================
+  // Admin cancel leave request
+  // =========================================================================
+
+  cancelLeaveRequest: adminProcedure
+    .input(
+      z.object({
+        requestId: z.string().uuid(),
+        reason: z.string().max(500).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const request = await db.query.leaveRequests.findFirst({
+        where: and(
+          eq(leaveRequests.id, input.requestId),
+          eq(leaveRequests.status, "approved")
+        ),
+        with: { user: { columns: { id: true, organizationId: true } } },
+      });
+
+      if (!request) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Approved leave request not found.",
+        });
+      }
+
+      if (request.user.organizationId !== ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
+      const year = parseInt(request.startDate.toString().substring(0, 4), 10);
+      const days = parseFloat(request.totalBusinessDays);
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(leaveRequests)
+          .set({ status: "cancelled", cancelledAt: new Date(), updatedAt: new Date() })
+          .where(eq(leaveRequests.id, input.requestId));
+
+        // Restore used balance
+        await tx
+          .update(leaveBalances)
+          .set({ used: sql`GREATEST(0, ${leaveBalances.used} - ${days})` })
+          .where(
+            and(
+              eq(leaveBalances.userId, request.userId),
+              eq(leaveBalances.leaveTypeId, request.leaveTypeId),
+              eq(leaveBalances.year, year)
+            )
+          );
+      });
+
+      await appendAuditLog({
+        organizationId: ctx.user.organizationId,
+        userId: ctx.user.id,
+        action: AUDIT_ACTIONS.LEAVE_CANCELLED,
+        entityType: "leave_request",
+        entityId: input.requestId,
+        metadata: {
+          cancelledBy: "admin",
+          adminId: ctx.user.id,
+          reason: input.reason,
+          affectedUserId: request.userId,
+          days,
+        },
+      });
+
+      notifyAdminCancelledRequest(input.requestId, ctx.user.id, input.reason).catch(console.error);
+
+      return { success: true };
     }),
 
   // =========================================================================

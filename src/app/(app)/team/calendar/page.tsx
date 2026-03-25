@@ -3,11 +3,22 @@
 import { useState, useMemo } from "react";
 import { format, addMonths, subMonths, parseISO } from "date-fns";
 import { parseLocalDate } from "@/lib/date-utils";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
+import { useSession } from "next-auth/react";
+import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -111,8 +122,26 @@ function MiniMonth({
 
 export default function TeamCalendarPage() {
   const today = new Date();
+  const { data: session } = useSession();
+  const role = session?.user?.role ?? "employee";
+  const isAdmin = role === "admin" || role === "super_admin";
+
   const [anchor, setAnchor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [cancelTargetId, setCancelTargetId] = useState<string | null>(null);
+
+  const utils = trpc.useUtils();
+  const cancelMutation = trpc.admin.cancelLeaveRequest.useMutation({
+    onSuccess: () => {
+      toast.success("Leave request cancelled and employee notified.");
+      setCancelTargetId(null);
+      utils.user.getTeamCalendar.invalidate();
+      utils.user.getCoverageHeatmap.invalidate();
+    },
+    onError: (err) => {
+      toast.error(err.message ?? "Failed to cancel request.");
+    },
+  });
 
   // Show 3 consecutive months starting from anchor
   const months = useMemo(() => [0, 1, 2].map((offset) => {
@@ -158,8 +187,39 @@ export default function TeamCalendarPage() {
   const todayStr = toYMD(today);
   const isLoading = loadingHeat || loadingEvents;
 
+  const cancelTarget = selectedEvents.find((e) => e.id === cancelTargetId);
+
   return (
     <div className="space-y-4">
+      <Dialog open={!!cancelTargetId} onOpenChange={(o: boolean) => { if (!o) setCancelTargetId(null); }}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Cancel approved leave?</DialogTitle>
+            <DialogDescription>
+              {cancelTarget && (
+                <>
+                  This will cancel the approved{" "}
+                  <strong>{cancelTarget.leaveType.name}</strong> leave for{" "}
+                  <strong>{cancelTarget.user.firstName} {cancelTarget.user.lastName}</strong>{" "}
+                  ({format(parseLocalDate(cancelTarget.startDate.toString()), "MMM d")} – {format(parseLocalDate(cancelTarget.endDate.toString()), "MMM d, yyyy")}).
+                  The employee will be notified by email and their balance will be restored.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>Keep</DialogClose>
+            <Button
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => cancelTargetId && cancelMutation.mutate({ requestId: cancelTargetId })}
+              disabled={cancelMutation.isPending}
+            >
+              Cancel Leave
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-xl font-semibold text-slate-900">Team Calendar</h2>
@@ -248,9 +308,22 @@ export default function TeamCalendarPage() {
                             {format(parseLocalDate(evt.startDate.toString()), "MMM d")} – {format(parseLocalDate(evt.endDate.toString()), "MMM d")} · {days.toFixed(1)}d
                           </p>
                         </div>
-                        <Badge variant={evt.status === "approved" ? "default" : "outline"} className="text-xs shrink-0">
-                          {evt.status}
-                        </Badge>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Badge variant={evt.status === "approved" ? "default" : "outline"} className="text-xs">
+                            {evt.status}
+                          </Badge>
+                          {isAdmin && evt.status === "approved" && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => setCancelTargetId(evt.id)}
+                              title="Cancel this approved leave"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
