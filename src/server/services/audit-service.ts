@@ -40,6 +40,7 @@ export const AUDIT_ACTIONS = {
   USER_DEACTIVATED: "user.deactivated",
   USER_PASSWORD_CHANGED: "user.password_changed",
   USER_ACCOUNT_LOCKED: "user.account_locked",
+  USER_LOGIN_LINK_SENT: "user.login_link_sent",
 
   // Balance
   BALANCE_ADJUSTED: "balance.adjusted",

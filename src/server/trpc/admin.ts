@@ -360,6 +360,97 @@ export const adminRouter = router({
       return { success: true };
     }),
 
+  sendLoginLink: adminProcedure
+    .input(z.object({ userId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const user = await db.query.users.findFirst({
+        where: and(
+          eq(users.id, input.userId),
+          eq(users.organizationId, ctx.user.organizationId)
+        ),
+        columns: { id: true, email: true, firstName: true, deletedAt: true },
+      });
+      if (!user || user.deletedAt) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const tempPassword = generateTempPassword();
+      const passwordHash = await hashPassword(tempPassword);
+
+      await db
+        .update(users)
+        .set({ passwordHash, mustChangePassword: true, updatedAt: new Date() })
+        .where(eq(users.id, user.id));
+
+      appendAuditLog({
+        organizationId: ctx.user.organizationId,
+        userId: ctx.user.id,
+        action: AUDIT_ACTIONS.USER_LOGIN_LINK_SENT,
+        entityType: "user",
+        entityId: user.id,
+        newValues: { email: user.email },
+      }).catch(console.error);
+
+      try {
+        await sendWelcomeEmail({
+          email: user.email,
+          firstName: user.firstName,
+          tempPassword,
+        });
+      } catch {
+        // Non-critical — caller can share the temp password manually
+      }
+
+      return { tempPassword };
+    }),
+
+  bulkSendLoginLinks: adminProcedure
+    .input(z.object({ userIds: z.array(z.string().uuid()).min(1).max(50) }))
+    .mutation(async ({ ctx, input }) => {
+      const orgUsers = await db.query.users.findMany({
+        where: and(
+          inArray(users.id, input.userIds),
+          eq(users.organizationId, ctx.user.organizationId),
+          isNull(users.deletedAt)
+        ),
+        columns: { id: true, email: true, firstName: true },
+      });
+
+      const results: { userId: string; sent: boolean }[] = [];
+
+      for (const user of orgUsers) {
+        const tempPassword = generateTempPassword();
+        const passwordHash = await hashPassword(tempPassword);
+
+        await db
+          .update(users)
+          .set({ passwordHash, mustChangePassword: true, updatedAt: new Date() })
+          .where(eq(users.id, user.id));
+
+        appendAuditLog({
+          organizationId: ctx.user.organizationId,
+          userId: ctx.user.id,
+          action: AUDIT_ACTIONS.USER_LOGIN_LINK_SENT,
+          entityType: "user",
+          entityId: user.id,
+          newValues: { email: user.email },
+        }).catch(console.error);
+
+        let sent = false;
+        try {
+          await sendWelcomeEmail({
+            email: user.email,
+            firstName: user.firstName,
+            tempPassword,
+          });
+          sent = true;
+        } catch {
+          // continue — log per-user failure in results
+        }
+        results.push({ userId: user.id, sent });
+      }
+
+      return { results };
+    }),
+
   adjustBalance: adminProcedure
     .input(
       z.object({
