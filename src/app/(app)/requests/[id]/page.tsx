@@ -6,18 +6,16 @@ import Link from "next/link";
 import { format, formatDistanceToNow } from "date-fns";
 import { parseLocalDate } from "@/lib/date-utils";
 import {
-  ArrowLeft,
-  Clock,
-  CheckCircle2,
-  XCircle,
   AlertCircle,
+  ArrowLeft,
   ArrowUpCircle,
+  CheckCircle2,
   Loader2,
   ShieldAlert,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -35,37 +33,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
-import type { LeaveStatus } from "@/lib/types";
-
-// ---------------------------------------------------------------------------
-// Status badge
-// ---------------------------------------------------------------------------
-
-const STATUS_CFG: Record<
-  LeaveStatus,
-  {
-    label: string;
-    variant: "default" | "secondary" | "destructive" | "outline";
-    icon: React.ComponentType<{ className?: string }>;
-  }
-> = {
-  pending: { label: "Pending", variant: "outline", icon: Clock },
-  approved: { label: "Approved", variant: "default", icon: CheckCircle2 },
-  denied: { label: "Denied", variant: "destructive", icon: XCircle },
-  cancelled: { label: "Cancelled", variant: "secondary", icon: XCircle },
-  expired: { label: "Expired", variant: "secondary", icon: AlertCircle },
-  draft: { label: "Draft", variant: "outline", icon: Clock },
-};
-
-function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CFG[status as LeaveStatus] ?? STATUS_CFG.pending;
-  return (
-    <Badge variant={cfg.variant} className="gap-1 text-xs">
-      <cfg.icon className="h-3 w-3" />
-      {cfg.label}
-    </Badge>
-  );
-}
+import { StatusBadge } from "@/components/ui/status-badge";
 
 // ---------------------------------------------------------------------------
 // Approval action icon

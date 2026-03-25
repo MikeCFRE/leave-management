@@ -10,14 +10,9 @@ import {
   ChevronRight,
   Loader2,
   CalendarDays,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import {
   Dialog,
@@ -30,36 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import type { LeaveStatus } from "@/lib/types";
-
-// ---------------------------------------------------------------------------
-// Status badge (same config as dashboard)
-// ---------------------------------------------------------------------------
-
-const STATUS_CFG: Record<
-  LeaveStatus,
-  {
-    label: string;
-    variant: "default" | "secondary" | "destructive" | "outline";
-    icon: React.ComponentType<{ className?: string }>;
-  }
-> = {
-  pending: { label: "Pending", variant: "outline", icon: Clock },
-  approved: { label: "Approved", variant: "default", icon: CheckCircle2 },
-  denied: { label: "Denied", variant: "destructive", icon: XCircle },
-  cancelled: { label: "Cancelled", variant: "secondary", icon: XCircle },
-  expired: { label: "Expired", variant: "secondary", icon: AlertCircle },
-  draft: { label: "Draft", variant: "outline", icon: Clock },
-};
-
-function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CFG[status as LeaveStatus] ?? STATUS_CFG.pending;
-  return (
-    <Badge variant={cfg.variant} className="gap-1 text-xs shrink-0">
-      <cfg.icon className="h-3 w-3" />
-      {cfg.label}
-    </Badge>
-  );
-}
+import { StatusBadge } from "@/components/ui/status-badge";
 
 // ---------------------------------------------------------------------------
 // Filter tabs

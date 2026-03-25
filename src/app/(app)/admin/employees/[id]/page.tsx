@@ -6,12 +6,10 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { parseLocalDate } from "@/lib/date-utils";
 import {
-  ArrowLeft, Loader2, AlertCircle, Clock,
-  CheckCircle2, XCircle, Minus, Plus,
+  AlertCircle, ArrowLeft, Loader2, Minus, Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,7 +23,7 @@ import {
   DialogDescription, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
-import type { LeaveStatus } from "@/lib/types";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -36,24 +34,10 @@ const ROLE_LABELS: Record<string, string> = {
   admin: "Admin", super_admin: "Super Admin",
 };
 
-const STATUS_CFG: Record<LeaveStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ComponentType<{ className?: string }> }> = {
-  pending:   { label: "Pending",   variant: "outline",     icon: Clock },
-  approved:  { label: "Approved",  variant: "default",     icon: CheckCircle2 },
-  denied:    { label: "Denied",    variant: "destructive", icon: XCircle },
-  cancelled: { label: "Cancelled", variant: "secondary",   icon: XCircle },
-  expired:   { label: "Expired",   variant: "secondary",   icon: AlertCircle },
-  draft:     { label: "Draft",     variant: "outline",     icon: Clock },
+const EMPLOYMENT_STATUS_LABELS: Record<string, string> = {
+  active: "Active", inactive: "Inactive",
+  on_leave: "On Leave", terminated: "Terminated",
 };
-
-function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CFG[status as LeaveStatus] ?? STATUS_CFG.pending;
-  return (
-    <Badge variant={cfg.variant} className="gap-1 text-xs shrink-0">
-      <cfg.icon className="h-3 w-3" />
-      {cfg.label}
-    </Badge>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Balance adjust dialog
@@ -430,7 +414,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
               <div className="space-y-1.5">
                 <Label>Role</Label>
                 <Select value={form.role} onValueChange={(v) => setForm((p) => ({ ...p, role: v ?? "" }))}>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue>{ROLE_LABELS[form.role] ?? form.role}</SelectValue></SelectTrigger>
                   <SelectContent>
                     {Object.entries(ROLE_LABELS).map(([v, l]) => (
                       <SelectItem key={v} value={v}>{l}</SelectItem>
@@ -441,7 +425,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
               <div className="space-y-1.5">
                 <Label>Status</Label>
                 <Select value={form.employmentStatus} onValueChange={(v) => setForm((p) => ({ ...p, employmentStatus: v ?? "" }))}>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue>{EMPLOYMENT_STATUS_LABELS[form.employmentStatus] ?? form.employmentStatus}</SelectValue></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="inactive">Inactive</SelectItem>
@@ -462,7 +446,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                     <SelectValue placeholder="None">
                       {form.departmentId
                         ? (departments.find((d) => d.id === form.departmentId)?.name ?? "")
-                        : undefined}
+                        : "None"}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -483,7 +467,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                     <SelectValue placeholder="None">
                       {form.managerId
                         ? (() => { const m = managerOptions.find((u) => u.id === form.managerId); return m ? `${m.firstName} ${m.lastName}` : ""; })()
-                        : undefined}
+                        : "None"}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>

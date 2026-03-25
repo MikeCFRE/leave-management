@@ -41,6 +41,11 @@ const STATUS_VARIANTS: Record<string, "default" | "secondary" | "destructive" | 
   inactive: "outline", terminated: "destructive",
 };
 
+const STATUS_LABELS: Record<string, string> = {
+  active: "Active", on_leave: "On Leave",
+  inactive: "Inactive", terminated: "Terminated",
+};
+
 // ---------------------------------------------------------------------------
 // Create employee dialog
 // ---------------------------------------------------------------------------
@@ -138,7 +143,7 @@ function CreateEmployeeDialog({
                   <Label htmlFor="ce-role">Role</Label>
                   <Select value={form.role} onValueChange={(v) => setForm((p) => ({ ...p, role: v ?? "" }))}>
                     <SelectTrigger id="ce-role" className="w-full">
-                      <SelectValue />
+                      <SelectValue>{ROLE_LABELS[form.role] ?? form.role}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {Object.entries(ROLE_LABELS).map(([v, l]) => (
@@ -298,7 +303,9 @@ export default function EmployeesPage() {
         </form>
         <Select value={roleFilter || "_all"} onValueChange={handleFilterChange(setRoleFilter)}>
           <SelectTrigger className="w-36">
-            <SelectValue placeholder="All Roles" />
+            <SelectValue placeholder="All Roles">
+              {roleFilter ? (ROLE_LABELS[roleFilter] ?? roleFilter) : "All Roles"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="_all">All Roles</SelectItem>
@@ -309,7 +316,9 @@ export default function EmployeesPage() {
         </Select>
         <Select value={statusFilter || "_all"} onValueChange={handleFilterChange(setStatusFilter)}>
           <SelectTrigger className="w-36">
-            <SelectValue placeholder="All Statuses" />
+            <SelectValue placeholder="All Statuses">
+              {statusFilter ? (STATUS_LABELS[statusFilter] ?? statusFilter) : "All Statuses"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="_all">All Statuses</SelectItem>
@@ -351,7 +360,7 @@ export default function EmployeesPage() {
                 >
                   <Link
                     href={`/admin/employees/${u.id}`}
-                    className="inline-flex min-h-[44px] items-center text-sm font-medium text-slate-800 hover:underline"
+                    className="inline-flex min-h-[44px] items-center text-sm font-medium text-slate-800 hover:underline rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     {u.firstName} {u.lastName}
                   </Link>

@@ -5,44 +5,15 @@ import { useSession } from "next-auth/react";
 import { format } from "date-fns";
 import { parseLocalDate } from "@/lib/date-utils";
 import {
-  PlusCircle, Clock, CheckCircle2, XCircle,
-  AlertCircle, ArrowRight, CalendarDays, Loader2,
+  AlertCircle, PlusCircle, ArrowRight, CalendarDays, Loader2,
 } from "lucide-react";
 import {
   Card, CardContent, CardHeader, CardTitle, CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { trpc } from "@/lib/trpc";
-import type { LeaveStatus } from "@/lib/types";
-
-// ---------------------------------------------------------------------------
-// Status badge
-// ---------------------------------------------------------------------------
-
-const STATUS_CFG: Record<LeaveStatus, {
-  label: string;
-  variant: "default" | "secondary" | "destructive" | "outline";
-  icon: React.ComponentType<{ className?: string }>;
-}> = {
-  pending:   { label: "Pending",   variant: "outline",     icon: Clock },
-  approved:  { label: "Approved",  variant: "default",     icon: CheckCircle2 },
-  denied:    { label: "Denied",    variant: "destructive", icon: XCircle },
-  cancelled: { label: "Cancelled", variant: "secondary",   icon: XCircle },
-  expired:   { label: "Expired",   variant: "secondary",   icon: AlertCircle },
-  draft:     { label: "Draft",     variant: "outline",     icon: Clock },
-};
-
-function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CFG[status as LeaveStatus] ?? STATUS_CFG.pending;
-  return (
-    <Badge variant={cfg.variant} className="gap-1 text-xs shrink-0">
-      <cfg.icon className="h-3 w-3" />
-      {cfg.label}
-    </Badge>
-  );
-}
+import { StatusBadge } from "@/components/ui/status-badge";
 
 // ---------------------------------------------------------------------------
 // Balance card

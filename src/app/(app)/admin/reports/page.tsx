@@ -393,7 +393,7 @@ function AllRequestsReport({ departments }: { departments: { id: string; name: s
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Keep</DialogClose>
             <Button
-              className="bg-red-600 hover:bg-red-700 text-white"
+              variant="destructive"
               onClick={() => cancelTargetId && cancelMutation.mutate({ requestId: cancelTargetId })}
               disabled={cancelMutation.isPending}
             >
@@ -408,7 +408,7 @@ function AllRequestsReport({ departments }: { departments: { id: string; name: s
         <Select value={statusFilter || "_all"} onValueChange={handleFilter(setStatusFilter)}>
           <SelectTrigger className="w-36">
             <SelectValue placeholder="All statuses">
-              {statusFilter ? statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1) : undefined}
+              {statusFilter ? statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1) : "All statuses"}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
@@ -421,7 +421,7 @@ function AllRequestsReport({ departments }: { departments: { id: string; name: s
         <Select value={deptFilter || "_all"} onValueChange={handleFilter(setDeptFilter)}>
           <SelectTrigger className="w-44">
             <SelectValue placeholder="All departments">
-              {deptFilter ? departments.find((d) => d.id === deptFilter)?.name : undefined}
+              {deptFilter ? (departments.find((d) => d.id === deptFilter)?.name ?? "All departments") : "All departments"}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>

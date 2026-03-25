@@ -134,7 +134,7 @@ function DeptDialog({
                   <SelectValue placeholder="None (top-level)">
                     {form.parentId
                       ? (parentOptions.find((d) => d.id === form.parentId)?.name ?? "")
-                      : undefined}
+                      : "None (top-level)"}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>

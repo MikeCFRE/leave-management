@@ -5,7 +5,7 @@ import { format, addMonths, subMonths, parseISO } from "date-fns";
 import { parseLocalDate } from "@/lib/date-utils";
 import { ChevronLeft, ChevronRight, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { useSession } from "next-auth/react";
@@ -210,7 +210,7 @@ export default function TeamCalendarPage() {
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Keep</DialogClose>
             <Button
-              className="bg-red-600 hover:bg-red-700 text-white"
+              variant="destructive"
               onClick={() => cancelTargetId && cancelMutation.mutate({ requestId: cancelTargetId })}
               disabled={cancelMutation.isPending}
             >
@@ -309,9 +309,7 @@ export default function TeamCalendarPage() {
                           </p>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
-                          <Badge variant={evt.status === "approved" ? "default" : "outline"} className="text-xs">
-                            {evt.status}
-                          </Badge>
+                          <StatusBadge status={evt.status} />
                           {isAdmin && evt.status === "approved" && (
                             <Button
                               variant="ghost"

@@ -33,6 +33,7 @@ const AUDIT_ACTIONS = [
   "user.deactivated",
   "user.password_changed",
   "user.account_locked",
+  "user.login_link_sent",
   "balance.adjusted",
   "balance.accrued",
   "balance.carried_over",
@@ -201,7 +202,9 @@ export default function AuditLogPage() {
           <Label className="text-xs">Action</Label>
           <Select value={action || "_all"} onValueChange={(v) => { setAction(v === "_all" ? "" : (v ?? "")); resetPage(); }}>
             <SelectTrigger className="w-56">
-              <SelectValue placeholder="All actions" />
+              <SelectValue placeholder="All actions">
+                {action || "All actions"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="_all">All actions</SelectItem>
@@ -215,7 +218,9 @@ export default function AuditLogPage() {
           <Label className="text-xs">Entity Type</Label>
           <Select value={entityType || "_all"} onValueChange={(v) => { setEntityType(v === "_all" ? "" : (v ?? "")); resetPage(); }}>
             <SelectTrigger className="w-40">
-              <SelectValue placeholder="All types" />
+              <SelectValue placeholder="All types">
+                {entityType || "All types"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="_all">All types</SelectItem>
