@@ -134,6 +134,7 @@ export const users = pgTable("users", {
   lockedUntil: timestamp("locked_until", { withTimezone: true }),
   lastPasswordChange: timestamp("last_password_change", { withTimezone: true }),
   notificationPreferences: jsonb("notification_preferences"),
+  birthday: date("birthday"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),

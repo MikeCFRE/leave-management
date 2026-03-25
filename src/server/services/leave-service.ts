@@ -2,6 +2,8 @@ import { and, eq, desc, sql, or } from "drizzle-orm";
 import {
   notifyRequestSubmitted,
   notifyRequestCancelledByEmployee,
+  notifyRequestEdited,
+  notifyAdminEditedRequest,
 } from "@/server/services/notification-service";
 import { db } from "@/server/db";
 import {
@@ -237,6 +239,152 @@ export async function cancelLeaveRequest(
   // Notify the approver if the request was approved (fire-and-forget)
   if (request.status === "approved") {
     notifyRequestCancelledByEmployee(requestId).catch(console.error);
+  }
+
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// editLeaveRequest
+// ---------------------------------------------------------------------------
+
+export interface EditLeaveInput {
+  requestId: string;
+  actorId: string;        // who is making the edit
+  isAdmin: boolean;
+  startDate: string;      // YYYY-MM-DD
+  endDate: string;        // YYYY-MM-DD
+  reason?: string;
+  workSchedule: WorkSchedule | null;
+  holidays: string[] | null;
+}
+
+export type EditLeaveResult =
+  | { success: true }
+  | { success: false; error: string };
+
+export async function editLeaveRequest(
+  input: EditLeaveInput
+): Promise<EditLeaveResult> {
+  const request = await db.query.leaveRequests.findFirst({
+    where: eq(leaveRequests.id, input.requestId),
+  });
+
+  if (!request) return { success: false, error: "Request not found." };
+
+  // Employees can only edit their own requests
+  if (!input.isAdmin && request.userId !== input.actorId) {
+    return { success: false, error: "You can only edit your own requests." };
+  }
+
+  // Determine which statuses are editable
+  if (!input.isAdmin && request.status !== "pending" && request.status !== "approved") {
+    return { success: false, error: "Only pending or approved requests can be edited." };
+  }
+  if (input.isAdmin && request.status !== "pending" && request.status !== "approved") {
+    return { success: false, error: "Only pending or approved requests can be edited." };
+  }
+
+  const oldDays = parseFloat(request.totalBusinessDays);
+  const oldYear = parseInt(request.startDate.toString().substring(0, 4), 10);
+  const newYear = parseInt(input.startDate.substring(0, 4), 10);
+
+  const newTotalCalendarDays = countCalendarDays(input.startDate, input.endDate);
+  const newTotalBusinessDays = countBusinessDays(
+    input.startDate,
+    input.endDate,
+    input.workSchedule,
+    input.holidays
+  );
+
+  // Determine new status:
+  // - Employee editing approved → reset to pending (needs re-approval)
+  // - Everything else → keep same status
+  const newStatus =
+    !input.isAdmin && request.status === "approved" ? "pending" : request.status;
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(leaveRequests)
+      .set({
+        startDate: input.startDate,
+        endDate: input.endDate,
+        totalBusinessDays: newTotalBusinessDays.toFixed(2),
+        totalCalendarDays: newTotalCalendarDays,
+        reason: input.reason ?? request.reason,
+        status: newStatus,
+        updatedAt: new Date(),
+      })
+      .where(eq(leaveRequests.id, input.requestId));
+
+    if (request.status === "pending") {
+      // Subtract old pending, add new pending (same balance column)
+      await tx
+        .update(leaveBalances)
+        .set({ pending: sql`GREATEST(0, ${leaveBalances.pending} - ${oldDays})` })
+        .where(
+          and(
+            eq(leaveBalances.userId, request.userId),
+            eq(leaveBalances.leaveTypeId, request.leaveTypeId),
+            eq(leaveBalances.year, oldYear)
+          )
+        );
+      await tx
+        .update(leaveBalances)
+        .set({ pending: sql`${leaveBalances.pending} + ${newTotalBusinessDays}` })
+        .where(
+          and(
+            eq(leaveBalances.userId, request.userId),
+            eq(leaveBalances.leaveTypeId, request.leaveTypeId),
+            eq(leaveBalances.year, newYear)
+          )
+        );
+    } else if (request.status === "approved") {
+      // Subtract old used balance
+      await tx
+        .update(leaveBalances)
+        .set({ used: sql`GREATEST(0, ${leaveBalances.used} - ${oldDays})` })
+        .where(
+          and(
+            eq(leaveBalances.userId, request.userId),
+            eq(leaveBalances.leaveTypeId, request.leaveTypeId),
+            eq(leaveBalances.year, oldYear)
+          )
+        );
+
+      if (input.isAdmin) {
+        // Admin edit: stay approved, add new days to used
+        await tx
+          .update(leaveBalances)
+          .set({ used: sql`${leaveBalances.used} + ${newTotalBusinessDays}` })
+          .where(
+            and(
+              eq(leaveBalances.userId, request.userId),
+              eq(leaveBalances.leaveTypeId, request.leaveTypeId),
+              eq(leaveBalances.year, newYear)
+            )
+          );
+      } else {
+        // Employee edit: reset to pending, add new days to pending
+        await tx
+          .update(leaveBalances)
+          .set({ pending: sql`${leaveBalances.pending} + ${newTotalBusinessDays}` })
+          .where(
+            and(
+              eq(leaveBalances.userId, request.userId),
+              eq(leaveBalances.leaveTypeId, request.leaveTypeId),
+              eq(leaveBalances.year, newYear)
+            )
+          );
+      }
+    }
+  });
+
+  // Fire-and-forget notifications
+  if (input.isAdmin) {
+    notifyAdminEditedRequest(input.requestId, input.actorId).catch(console.error);
+  } else {
+    notifyRequestEdited(input.requestId).catch(console.error);
   }
 
   return { success: true };

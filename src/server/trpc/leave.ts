@@ -7,6 +7,7 @@ import { organizations } from "@/server/db/schema";
 import { getUserById } from "@/server/services/user-service";
 import {
   cancelLeaveRequest,
+  editLeaveRequest,
   getLeaveBalances,
   getMyRequests,
   getRequestById,
@@ -134,6 +135,55 @@ export const leaveRouter = router({
     )
     .query(async ({ ctx, input }) => {
       return getMyRequests(ctx.user.id, input ?? undefined);
+    }),
+
+  /**
+   * Edit a leave request.
+   * Employees can edit pending or approved requests.
+   * Editing an approved request resets it to pending for re-approval.
+   */
+  editRequest: protectedProcedure
+    .input(
+      z.object({
+        requestId: z.string().uuid(),
+        startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        reason: z.string().max(1000).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (input.startDate > input.endDate) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Start date must be before or equal to end date.",
+        });
+      }
+
+      const workSchedule = ctx.org?.workSchedule as
+        | { workDays: number[] }
+        | null
+        | undefined;
+      const holidayCalendar = ctx.org?.holidayCalendar as
+        | { holidays: { date: string; name: string }[] }
+        | null
+        | undefined;
+
+      const result = await editLeaveRequest({
+        requestId: input.requestId,
+        actorId: ctx.user.id,
+        isAdmin: false,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        reason: input.reason,
+        workSchedule: workSchedule ?? null,
+        holidays: holidayCalendar?.holidays?.map((h) => h.date) ?? null,
+      });
+
+      if (!result.success) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: result.error });
+      }
+
+      return result;
     }),
 
   /**

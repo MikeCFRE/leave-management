@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { format, addMonths, subMonths, parseISO } from "date-fns";
 import { parseLocalDate } from "@/lib/date-utils";
-import { ChevronLeft, ChevronRight, Loader2, Trash2 } from "lucide-react";
+import { Cake, ChevronLeft, ChevronRight, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,10 +47,10 @@ const WEEK_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 
 function heatColor(count: number): string {
   if (count === 0) return "";
-  if (count === 1) return "bg-blue-100";
-  if (count === 2) return "bg-blue-200";
-  if (count === 3) return "bg-blue-300";
-  return "bg-blue-400";
+  if (count === 1) return "bg-sky-200";
+  if (count === 2) return "bg-blue-400";
+  if (count === 3) return "bg-indigo-500";
+  return "bg-violet-700";
 }
 
 // ---------------------------------------------------------------------------
@@ -61,6 +61,7 @@ function MiniMonth({
   year,
   month,
   countMap,
+  birthdayDates,
   selectedDay,
   todayStr,
   onSelect,
@@ -68,6 +69,7 @@ function MiniMonth({
   year: number;
   month: number;
   countMap: Map<string, number>;
+  birthdayDates: Set<string>;
   selectedDay: string | null;
   todayStr: string;
   onSelect: (d: string) => void;
@@ -93,6 +95,8 @@ function MiniMonth({
           if (day === null) return <div key={`e-${i}`} />;
           const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
           const count = countMap.get(dateStr) ?? 0;
+          const mmdd = dateStr.slice(5); // MM-DD
+          const hasBirthday = birthdayDates.has(mmdd);
           const isToday = dateStr === todayStr;
           const isSelected = dateStr === selectedDay;
           return (
@@ -100,7 +104,7 @@ function MiniMonth({
               key={dateStr}
               onClick={() => onSelect(dateStr === selectedDay ? "" : dateStr)}
               className={[
-                "flex aspect-square items-center justify-center rounded text-[11px] transition-colors",
+                "relative flex aspect-square items-center justify-center rounded text-[11px] transition-colors",
                 heatColor(count),
                 count >= 4 ? "text-white" : "",
                 isSelected ? "ring-2 ring-blue-500 ring-offset-0" : "hover:bg-slate-100",
@@ -108,6 +112,9 @@ function MiniMonth({
               ].filter(Boolean).join(" ")}
             >
               {day}
+              {hasBirthday && (
+                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-green-500" />
+              )}
             </button>
           );
         })}
@@ -155,6 +162,8 @@ export default function TeamCalendarPage() {
   const { data: heatmap = [], isLoading: loadingHeat } =
     trpc.user.getCoverageHeatmap.useQuery({ startDate: rangeStart, endDate: rangeEnd });
 
+  const { data: birthdayMembers = [] } = trpc.user.getTeamBirthdays.useQuery();
+
   const { data: teamEvents = [], isLoading: loadingEvents } =
     trpc.user.getTeamCalendar.useQuery({
       startDate: rangeStart,
@@ -183,7 +192,26 @@ export default function TeamCalendarPage() {
     return m;
   }, [teamEvents]);
 
+  // Build a Set of MM-DD strings for birthday lookup
+  const birthdayMMDD = useMemo(() => {
+    const s = new Set<string>();
+    birthdayMembers.forEach((m) => s.add(m.birthday.slice(5)));
+    return s;
+  }, [birthdayMembers]);
+
+  // Map MM-DD -> people with that birthday (for detail panel)
+  const birthdayPeopleMap = useMemo(() => {
+    const m = new Map<string, typeof birthdayMembers>();
+    birthdayMembers.forEach((member) => {
+      const mmdd = member.birthday.slice(5);
+      if (!m.has(mmdd)) m.set(mmdd, []);
+      m.get(mmdd)!.push(member);
+    });
+    return m;
+  }, [birthdayMembers]);
+
   const selectedEvents = selectedDay ? (peopleMap.get(selectedDay) ?? []) : [];
+  const selectedBirthdays = selectedDay ? (birthdayPeopleMap.get(selectedDay.slice(5)) ?? []) : [];
   const todayStr = toYMD(today);
   const isLoading = loadingHeat || loadingEvents;
 
@@ -252,6 +280,7 @@ export default function TeamCalendarPage() {
                     year={year}
                     month={month}
                     countMap={countMap}
+                    birthdayDates={birthdayMMDD}
                     selectedDay={selectedDay}
                     todayStr={todayStr}
                     onSelect={(d) => setSelectedDay(d || null)}
@@ -265,16 +294,20 @@ export default function TeamCalendarPage() {
                 <span className="text-xs text-slate-400">Absences:</span>
                 {[
                   { label: "0", cls: "bg-white border border-slate-200" },
-                  { label: "1", cls: "bg-blue-100" },
-                  { label: "2", cls: "bg-blue-200" },
-                  { label: "3", cls: "bg-blue-300" },
-                  { label: "4+", cls: "bg-blue-400" },
+                  { label: "1", cls: "bg-sky-200" },
+                  { label: "2", cls: "bg-blue-400" },
+                  { label: "3", cls: "bg-indigo-500" },
+                  { label: "4+", cls: "bg-violet-700" },
                 ].map(({ label, cls }) => (
                   <div key={label} className="flex items-center gap-1">
                     <div className={`h-3 w-3 rounded ${cls}`} />
                     <span className="text-xs text-slate-500">{label}</span>
                   </div>
                 ))}
+                <div className="flex items-center gap-1 ml-2">
+                  <span className="h-2 w-2 rounded-full bg-green-500 inline-block" />
+                  <span className="text-xs text-slate-500">Birthday</span>
+                </div>
               </div>
             )}
           </CardContent>
@@ -290,10 +323,21 @@ export default function TeamCalendarPage() {
           <CardContent>
             {!selectedDay ? (
               <p className="text-sm text-slate-400">Click any date to see who is out.</p>
-            ) : selectedEvents.length === 0 ? (
+            ) : (selectedEvents.length === 0 && selectedBirthdays.length === 0) ? (
               <p className="text-sm text-slate-400">No one is out on this day.</p>
             ) : (
               <div className="divide-y">
+                {selectedBirthdays.map((member) => (
+                  <div key={`bday-${member.id}`} className="py-2.5 first:pt-0">
+                    <div className="flex items-center gap-2">
+                      <Cake className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                      <p className="text-sm font-medium text-slate-800">
+                        {member.firstName} {member.lastName}
+                      </p>
+                    </div>
+                    <p className="mt-0.5 ml-5.5 text-xs text-green-600">Birthday 🎂</p>
+                  </div>
+                ))}
                 {selectedEvents.map((evt, i) => {
                   const days = parseFloat(evt.totalBusinessDays);
                   return (

@@ -255,4 +255,32 @@ export const userRouter = router({
         .map(([date, count]) => ({ date, count }))
         .sort((a, b) => a.date.localeCompare(b.date));
     }),
+
+  /**
+   * Returns all team members that have a birthday set, with their name and birthday.
+   * The caller is responsible for filtering by the visible date range.
+   */
+  getTeamBirthdays: protectedProcedure.query(async ({ ctx }) => {
+    const members = await db.query.users.findMany({
+      where: and(
+        eq(users.organizationId, ctx.user.organizationId),
+        ctx.user.departmentId
+          ? eq(users.departmentId, ctx.user.departmentId)
+          : undefined
+      ),
+      columns: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        birthday: true,
+      },
+    });
+
+    return members.filter((m) => m.birthday !== null) as Array<{
+      id: string;
+      firstName: string;
+      lastName: string;
+      birthday: string;
+    }>;
+  }),
 });

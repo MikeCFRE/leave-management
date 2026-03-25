@@ -18,6 +18,7 @@ import {
 import { hashPassword, sendWelcomeEmail } from "@/server/services/user-service";
 import { appendAuditLog, AUDIT_ACTIONS } from "@/server/services/audit-service";
 import { notifyAdminCancelledRequest } from "@/server/services/notification-service";
+import { editLeaveRequest } from "@/server/services/leave-service";
 import { getUserById } from "@/server/services/user-service";
 import type { UserRole } from "@/lib/types";
 import { formatDate } from "@/lib/date-utils";
@@ -189,6 +190,7 @@ export const adminRouter = router({
           mustChangePassword: true,
           lastPasswordChange: true,
           notificationPreferences: true,
+          birthday: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -312,6 +314,7 @@ export const adminRouter = router({
         employmentStatus: z
           .enum(["active", "inactive", "on_leave", "terminated"])
           .optional(),
+        birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -1178,6 +1181,86 @@ export const adminRouter = router({
       });
 
       notifyAdminCancelledRequest(input.requestId, ctx.user.id, input.reason).catch(console.error);
+
+      return { success: true };
+    }),
+
+  // =========================================================================
+  // Admin edit leave request
+  // =========================================================================
+
+  editLeaveRequest: adminProcedure
+    .input(
+      z.object({
+        requestId: z.string().uuid(),
+        startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        reason: z.string().max(1000).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (input.startDate > input.endDate) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Start date must be before or equal to end date.",
+        });
+      }
+
+      // Verify the request belongs to the same org
+      const existing = await db.query.leaveRequests.findFirst({
+        where: eq(leaveRequests.id, input.requestId),
+        with: { user: { columns: { id: true, organizationId: true } } },
+      });
+
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Request not found." });
+      }
+
+      if (existing.user.organizationId !== ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
+      const org = await db.query.organizations.findFirst({
+        where: eq(organizations.id, ctx.user.organizationId),
+      });
+
+      const workSchedule = org?.workSchedule as
+        | { workDays: number[] }
+        | null
+        | undefined;
+      const holidayCalendar = org?.holidayCalendar as
+        | { holidays: { date: string; name: string }[] }
+        | null
+        | undefined;
+
+      const result = await editLeaveRequest({
+        requestId: input.requestId,
+        actorId: ctx.user.id,
+        isAdmin: true,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        reason: input.reason,
+        workSchedule: workSchedule ?? null,
+        holidays: holidayCalendar?.holidays?.map((h) => h.date) ?? null,
+      });
+
+      if (!result.success) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: result.error });
+      }
+
+      await appendAuditLog({
+        organizationId: ctx.user.organizationId,
+        userId: ctx.user.id,
+        action: "leave_request.edited",
+        entityType: "leave_request",
+        entityId: input.requestId,
+        metadata: {
+          editedBy: "admin",
+          adminId: ctx.user.id,
+          startDate: input.startDate,
+          endDate: input.endDate,
+        },
+      });
 
       return { success: true };
     }),

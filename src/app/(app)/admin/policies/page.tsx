@@ -753,7 +753,9 @@ function PolicyRulesTab({ departments }: { departments: Department[] }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Select value={typeFilter || "_all"} onValueChange={(v) => setTypeFilter(v === "_all" ? "" : (v ?? ""))}>
           <SelectTrigger className="w-48">
-            <SelectValue placeholder="All rule types" />
+            <SelectValue>
+              {typeFilter ? (RULE_TYPES.find((t) => t.value === typeFilter)?.label ?? typeFilter) : "All rule types"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="_all">All rule types</SelectItem>

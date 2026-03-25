@@ -596,6 +596,103 @@ export async function notifyAdminCancelledRequest(
 }
 
 /**
+ * Notify the manager when an employee edits a pending leave request.
+ */
+export async function notifyRequestEdited(requestId: string): Promise<void> {
+  const request = await db.query.leaveRequests.findFirst({
+    where: eq(leaveRequests.id, requestId),
+    with: {
+      user: true,
+      leaveType: { columns: { id: true, name: true } },
+    },
+  });
+
+  if (!request?.user.managerId) return;
+
+  const approver = await db.query.users.findFirst({
+    where: eq(users.id, request.user.managerId),
+  });
+
+  if (!approver) return;
+
+  const channel = getChannel(
+    approver.notificationPreferences as NotificationPreferences | null,
+    "request_submitted"
+  );
+
+  const reviewUrl = `${APP_URL}/approvals`;
+  const employeeName = `${request.user.firstName} ${request.user.lastName}`;
+  const approverName = `${approver.firstName} ${approver.lastName}`;
+
+  if (channel === "email" || channel === "both") {
+    await sendEmail({
+      to: approver.email,
+      subject: `Updated: Leave request from ${employeeName} has been revised`,
+      html: `<p>Hi ${approverName},</p><p>${employeeName} has updated their ${request.leaveType.name} leave request. The new dates are ${request.startDate} – ${request.endDate} (${parseFloat(request.totalBusinessDays).toFixed(1)} days). Please review the updated request.</p><p><a href="${reviewUrl}">Review request</a></p>`,
+    });
+  }
+
+  if (channel === "in_app" || channel === "both") {
+    await createInAppNotification({
+      userId: approver.id,
+      type: "request_submitted",
+      title: `Leave request updated by ${employeeName}`,
+      body: `${employeeName} revised their ${request.leaveType.name} request: ${request.startDate} – ${request.endDate}.`,
+      link: reviewUrl,
+    });
+  }
+}
+
+/**
+ * Notify the employee when an admin edits their leave request.
+ */
+export async function notifyAdminEditedRequest(
+  requestId: string,
+  adminId: string
+): Promise<void> {
+  const request = await db.query.leaveRequests.findFirst({
+    where: eq(leaveRequests.id, requestId),
+    with: {
+      user: true,
+      leaveType: { columns: { id: true, name: true } },
+    },
+  });
+
+  if (!request) return;
+
+  const admin = await db.query.users.findFirst({
+    where: eq(users.id, adminId),
+  });
+
+  const channel = getChannel(
+    request.user.notificationPreferences as NotificationPreferences | null,
+    "request_approved"
+  );
+
+  const dashboardUrl = `${APP_URL}/requests/${requestId}`;
+  const employeeName = `${request.user.firstName} ${request.user.lastName}`;
+  const adminName = admin ? `${admin.firstName} ${admin.lastName}` : "An administrator";
+
+  if (channel === "email" || channel === "both") {
+    await sendEmail({
+      to: request.user.email,
+      subject: `Your leave request has been updated by an administrator`,
+      html: `<p>Hi ${employeeName},</p><p>${adminName} has made changes to your ${request.leaveType.name} leave request. The updated dates are ${request.startDate} – ${request.endDate} (${parseFloat(request.totalBusinessDays).toFixed(1)} days).</p><p><a href="${dashboardUrl}">View request</a></p>`,
+    });
+  }
+
+  if (channel === "in_app" || channel === "both") {
+    await createInAppNotification({
+      userId: request.user.id,
+      type: "request_approved",
+      title: "Leave request updated by admin",
+      body: `Your ${request.leaveType.name} leave has been updated: ${request.startDate} – ${request.endDate}.`,
+      link: dashboardUrl,
+    });
+  }
+}
+
+/**
  * Mark one or more in-app notifications as read.
  */
 export async function markNotificationsRead(

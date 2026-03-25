@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Loader2,
   CalendarDays,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -99,6 +100,130 @@ function CancelDialog({
 }
 
 // ---------------------------------------------------------------------------
+// Edit dialog
+// ---------------------------------------------------------------------------
+
+function EditDialog({
+  request,
+  open,
+  onClose,
+}: {
+  request: { id: string; startDate: string; endDate: string; reason?: string | null; status: string };
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [startDate, setStartDate] = useState(
+    typeof request.startDate === "string"
+      ? request.startDate.slice(0, 10)
+      : format(new Date(request.startDate), "yyyy-MM-dd")
+  );
+  const [endDate, setEndDate] = useState(
+    typeof request.endDate === "string"
+      ? request.endDate.slice(0, 10)
+      : format(new Date(request.endDate), "yyyy-MM-dd")
+  );
+  const [reason, setReason] = useState(request.reason ?? "");
+
+  const utils = trpc.useUtils();
+  const edit = trpc.leave.editRequest.useMutation({
+    onSuccess: () => {
+      toast.success(
+        request.status === "approved"
+          ? "Request updated and reset to pending for re-approval."
+          : "Request updated."
+      );
+      utils.leave.getMyRequests.invalidate();
+      utils.leave.getBalances.invalidate();
+      onClose();
+    },
+    onError: (err) => {
+      toast.error(err.message);
+    },
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (startDate > endDate) {
+      toast.error("Start date must be before or equal to end date.");
+      return;
+    }
+    edit.mutate({ requestId: request.id, startDate, endDate, reason: reason || undefined });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent showCloseButton={false}>
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Edit Leave Request</DialogTitle>
+            <DialogDescription>
+              {request.status === "approved"
+                ? "Editing an approved request will reset it to pending and notify your approver."
+                : "Update the dates or reason for your request."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-4 space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label htmlFor="edit-start" className="text-sm font-medium text-slate-700">
+                  Start date
+                </label>
+                <input
+                  id="edit-start"
+                  type="date"
+                  required
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="edit-end" className="text-sm font-medium text-slate-700">
+                  End date
+                </label>
+                <input
+                  id="edit-end"
+                  type="date"
+                  required
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="edit-reason" className="text-sm font-medium text-slate-700">
+                Reason <span className="text-slate-400 font-normal">(optional)</span>
+              </label>
+              <textarea
+                id="edit-reason"
+                rows={3}
+                maxLength={1000}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Add a note for your approver…"
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 resize-none"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4">
+            <DialogClose render={<Button type="button" variant="outline" />}>
+              Cancel
+            </DialogClose>
+            <Button type="submit" disabled={edit.isPending}>
+              {edit.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save changes
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -108,6 +233,13 @@ export default function RequestHistoryPage() {
   const [statusFilter, setStatusFilter] = useState<LeaveStatus | "all">("all");
   const [page, setPage] = useState(1);
   const [cancelTarget, setCancelTarget] = useState<{ id: string; isApproved: boolean } | null>(null);
+  const [editTarget, setEditTarget] = useState<{
+    id: string;
+    startDate: string;
+    endDate: string;
+    reason?: string | null;
+    status: string;
+  } | null>(null);
 
   const { data, isLoading } = trpc.leave.getMyRequests.useQuery({
     status: statusFilter === "all" ? undefined : statusFilter,
@@ -239,12 +371,29 @@ export default function RequestHistoryPage() {
                     <div className="flex items-center gap-2">
                       <StatusBadge status={req.status} />
                       {(req.status === "pending" || req.status === "approved") && (
-                        <button
-                          onClick={() => setCancelTarget({ id: req.id, isApproved: req.status === "approved" })}
-                          className="text-xs text-red-500 hover:underline"
-                        >
-                          Cancel
-                        </button>
+                        <>
+                          <button
+                            onClick={() =>
+                              setEditTarget({
+                                id: req.id,
+                                startDate: req.startDate as string,
+                                endDate: req.endDate as string,
+                                reason: req.reason,
+                                status: req.status,
+                              })
+                            }
+                            className="text-xs text-slate-500 hover:underline"
+                            title="Edit request"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setCancelTarget({ id: req.id, isApproved: req.status === "approved" })}
+                            className="text-xs text-red-500 hover:underline"
+                          >
+                            Cancel
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -291,6 +440,15 @@ export default function RequestHistoryPage() {
           isApproved={cancelTarget.isApproved}
           open={!!cancelTarget}
           onClose={() => setCancelTarget(null)}
+        />
+      )}
+
+      {/* Edit dialog */}
+      {editTarget && (
+        <EditDialog
+          request={editTarget}
+          open={!!editTarget}
+          onClose={() => setEditTarget(null)}
         />
       )}
     </div>

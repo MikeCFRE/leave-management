@@ -310,6 +310,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
   const [form, setForm] = useState({
     firstName: "", lastName: "", email: "",
     role: "employee", departmentId: "", managerId: "", employmentStatus: "active",
+    birthday: "",
   });
 
   useEffect(() => {
@@ -322,6 +323,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
         departmentId: user.departmentId ?? "",
         managerId: user.managerId ?? "",
         employmentStatus: user.employmentStatus,
+        birthday: user.birthday ?? "",
       });
     }
   }, [user]);
@@ -351,6 +353,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       departmentId: form.departmentId || null,
       managerId: form.managerId || null,
       employmentStatus: form.employmentStatus as "active" | "inactive" | "on_leave" | "terminated",
+      birthday: form.birthday || null,
     });
   }
 
@@ -427,6 +430,10 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
             <div className="space-y-1.5">
               <Label htmlFor="ed-email">Email</Label>
               <Input id="ed-email" type="email" value={form.email} onChange={ff("email")} required />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ed-birthday">Birthday</Label>
+              <Input id="ed-birthday" type="date" value={form.birthday} onChange={ff("birthday")} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
