@@ -293,11 +293,16 @@ export const userRouter = router({
       },
     });
 
-    return members.filter((m) => m.birthday !== null) as Array<{
-      id: string;
-      firstName: string;
-      lastName: string;
-      birthday: string;
-    }>;
+    return members
+      .filter((m) => m.birthday !== null)
+      .map((m) => {
+        // Drizzle returns `date` columns as Date objects via postgres-js.
+        // Normalize to YYYY-MM-DD string so .slice(5) gives MM-DD on the client.
+        const raw = m.birthday as unknown;
+        const birthday = raw instanceof Date
+          ? raw.toISOString().slice(0, 10)
+          : String(raw).slice(0, 10);
+        return { id: m.id, firstName: m.firstName, lastName: m.lastName, birthday };
+      });
   }),
 });
