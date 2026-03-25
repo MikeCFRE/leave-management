@@ -9,6 +9,8 @@ import { db } from "@/server/db";
 import {
   leaveBalances,
   leaveRequests,
+  leaveTypes,
+  users,
 } from "@/server/db/schema";
 import { countBusinessDays, countCalendarDays, WorkSchedule } from "@/lib/date-utils";
 import {
@@ -25,6 +27,46 @@ import type { LeaveStatus } from "@/lib/types";
 
 export async function getLeaveBalances(userId: string, year?: number) {
   const targetYear = year ?? new Date().getFullYear();
+
+  // Lazy-create balance rows for any active org leave types that don't have one yet.
+  // This handles leave types added after the user was created, or new employees
+  // who were imported before a leave type was added.
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { organizationId: true },
+  });
+
+  if (user) {
+    const orgLeaveTypes = await db.query.leaveTypes.findMany({
+      where: and(
+        eq(leaveTypes.organizationId, user.organizationId),
+        eq(leaveTypes.isActive, true)
+      ),
+    });
+
+    const existing = await db.query.leaveBalances.findMany({
+      where: and(eq(leaveBalances.userId, userId), eq(leaveBalances.year, targetYear)),
+      columns: { leaveTypeId: true },
+    });
+
+    const existingIds = new Set(existing.map((b) => b.leaveTypeId));
+    const missing = orgLeaveTypes.filter((lt) => !existingIds.has(lt.id));
+
+    if (missing.length > 0) {
+      await db
+        .insert(leaveBalances)
+        .values(
+          missing.map((lt) => ({
+            userId,
+            leaveTypeId: lt.id,
+            year: targetYear,
+            totalEntitled: lt.defaultAnnualDays,
+          }))
+        )
+        .onConflictDoNothing();
+    }
+  }
+
   return db.query.leaveBalances.findMany({
     where: and(
       eq(leaveBalances.userId, userId),
