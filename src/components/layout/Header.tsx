@@ -79,9 +79,9 @@ export function Header() {
           >
             <Menu className="h-5 w-5 text-slate-500" />
           </Button>
-          <h1 className="text-lg font-semibold text-slate-900 truncate">
+          <span className="text-lg font-semibold text-slate-900 truncate">
             {pageTitle}
-          </h1>
+          </span>
         </div>
 
         {/* Right: notification bell + user menu */}
