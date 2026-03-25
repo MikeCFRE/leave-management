@@ -177,7 +177,7 @@ function BigMonth({
               onClick={() => onSelect(dateStr === selectedDay ? "" : dateStr)}
               className={[
                 "relative flex flex-col rounded p-0.5 h-14 text-left transition-colors",
-                isHoliday ? "bg-slate-100 hover:bg-slate-200" : "hover:bg-slate-50",
+                isHoliday ? "bg-slate-200 hover:bg-slate-300" : "hover:bg-slate-50",
                 isSelected ? "ring-2 ring-blue-500 ring-inset" : "",
                 !isHoliday && isImportant ? "ring-2 ring-yellow-400 ring-inset bg-yellow-50" : "",
                 !isHoliday && isSelected && isImportant ? "ring-2 ring-blue-500 ring-inset bg-yellow-50" : "",
