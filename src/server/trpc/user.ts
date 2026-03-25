@@ -64,6 +64,23 @@ export const userRouter = router({
   }),
 
   /**
+   * Update the current user's birthday (self-service).
+   */
+  updateBirthday: protectedProcedure
+    .input(
+      z.object({
+        birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await db
+        .update(users)
+        .set({ birthday: input.birthday, updatedAt: new Date() })
+        .where(eq(users.id, ctx.user.id));
+      return { success: true };
+    }),
+
+  /**
    * Update the current user's notification preferences.
    * Merges the supplied keys into the existing JSONB object.
    */

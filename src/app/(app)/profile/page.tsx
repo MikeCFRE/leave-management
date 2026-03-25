@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { Loader2, CheckCircle2 } from "lucide-react";
+import { Loader2, CheckCircle2, Cake } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -122,6 +122,78 @@ function ProfileInfo({
           </Badge>
         </div>
       </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Birthday section
+// ---------------------------------------------------------------------------
+
+function BirthdaySection({ initialBirthday }: { initialBirthday: string | null }) {
+  const [birthday, setBirthday] = useState(initialBirthday ?? "");
+  const [saved, setSaved] = useState(false);
+
+  const utils = trpc.useUtils();
+  const save = trpc.user.updateBirthday.useMutation({
+    onSuccess: () => {
+      toast.success("Birthday saved.");
+      utils.user.getProfile.invalidate();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  function handleSave() {
+    save.mutate({ birthday: birthday || null });
+  }
+
+  function handleClear() {
+    setBirthday("");
+    save.mutate({ birthday: null });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Cake className="h-4 w-4 text-slate-400" />
+          Birthday
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="mb-3 text-sm text-slate-500">
+          Your birthday is shown to teammates on the team calendar.
+        </p>
+        <div className="flex items-center gap-3">
+          <input
+            type="date"
+            value={birthday}
+            onChange={(e) => setBirthday(e.target.value)}
+            className="rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+          />
+          {birthday && (
+            <button
+              onClick={handleClear}
+              disabled={save.isPending}
+              className="text-xs text-slate-400 hover:text-red-500"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </CardContent>
+      <CardFooter className="justify-end border-t pt-4">
+        <Button onClick={handleSave} disabled={save.isPending}>
+          {save.isPending ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : saved ? (
+            <CheckCircle2 className="mr-2 h-4 w-4" />
+          ) : null}
+          Save Birthday
+        </Button>
+      </CardFooter>
     </Card>
   );
 }
@@ -249,6 +321,8 @@ export default function ProfilePage() {
       </div>
 
       <ProfileInfo profile={profile} />
+
+      <BirthdaySection initialBirthday={(profile as { birthday?: string | null }).birthday ?? null} />
 
       <Separator />
 
