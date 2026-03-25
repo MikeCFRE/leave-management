@@ -202,15 +202,31 @@ function BirthdaySection({ initialBirthday }: { initialBirthday: string | null }
 // Notification preferences section
 // ---------------------------------------------------------------------------
 
+const VALID_CHANNELS = new Set<string>(["both", "email", "in_app", "none"]);
+
+/** Normalize a raw DB value to a valid Channel string.
+ *  Handles legacy object format {"email":true,"inApp":true} as well as strings. */
+function toChannel(raw: unknown): Channel {
+  if (typeof raw === "string" && VALID_CHANNELS.has(raw)) return raw as Channel;
+  if (raw && typeof raw === "object") {
+    const v = raw as { email?: boolean; inApp?: boolean };
+    if (v.email && v.inApp) return "both";
+    if (v.email) return "email";
+    if (v.inApp) return "in_app";
+    return "none";
+  }
+  return "both";
+}
+
 function NotificationPreferences({
   initialPrefs,
 }: {
-  initialPrefs: Record<string, string>;
+  initialPrefs: Record<string, unknown>;
 }) {
   const [prefs, setPrefs] = useState<Record<string, Channel>>(() => {
     const defaults: Record<string, Channel> = {};
     PREF_EVENTS.forEach(({ key }) => {
-      defaults[key] = (initialPrefs[key] as Channel) ?? "both";
+      defaults[key] = toChannel(initialPrefs[key]);
     });
     return defaults;
   });
@@ -220,7 +236,7 @@ function NotificationPreferences({
     setPrefs((prev) => {
       const updated = { ...prev };
       PREF_EVENTS.forEach(({ key }) => {
-        if (initialPrefs[key]) updated[key] = initialPrefs[key] as Channel;
+        if (initialPrefs[key] !== undefined) updated[key] = toChannel(initialPrefs[key]);
       });
       return updated;
     });
@@ -309,7 +325,7 @@ export default function ProfilePage() {
   }
 
   const notifPrefs =
-    (profile.notificationPreferences as Record<string, string> | null) ?? {};
+    (profile.notificationPreferences as Record<string, unknown> | null) ?? {};
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
