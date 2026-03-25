@@ -20,7 +20,7 @@ import { appendAuditLog, AUDIT_ACTIONS } from "@/server/services/audit-service";
 import { notifyAdminCancelledRequest, notifyAdminEditedRequest } from "@/server/services/notification-service";
 import { editLeaveRequest } from "@/server/services/leave-service";
 import type { UserRole } from "@/lib/types";
-import { formatDate } from "@/lib/date-utils";
+import { countBusinessDays, countCalendarDays, formatDate } from "@/lib/date-utils";
 
 // ---------------------------------------------------------------------------
 // Utilities
@@ -223,24 +223,15 @@ export const adminRouter = router({
       });
 
       const year = new Date().getFullYear();
-      const monthsRemaining = 12 - new Date().getMonth(); // rough pro-rate
 
       if (orgLeaveTypes.length > 0) {
         await db.insert(leaveBalances).values(
           orgLeaveTypes.map((lt) => {
-            let entitlement: number;
             const annual = parseFloat(lt.defaultAnnualDays);
-            if (lt.accrualMethod === "front_loaded") {
-              // Allow admin override for front-loaded types (e.g. vacation)
-              entitlement = input.initialAnnualLeaveDays ?? annual;
-            } else if (lt.accrualMethod === "monthly") {
-              entitlement = parseFloat(
-                ((annual / 12) * monthsRemaining).toFixed(2)
-              );
-            } else {
-              // as_needed — no upfront balance
-              entitlement = 0;
-            }
+            // Always use the full policy entitlement — no pro-rating on hire.
+            const entitlement = lt.accrualMethod === "front_loaded"
+              ? (input.initialAnnualLeaveDays ?? annual)
+              : annual;
             return {
               userId: newUser.id,
               leaveTypeId: lt.id,
@@ -301,7 +292,6 @@ export const adminRouter = router({
     .mutation(async ({ ctx, input }) => {
       const today = new Date().toISOString().slice(0, 10);
       const year = new Date().getFullYear();
-      const monthsRemaining = 12 - new Date().getMonth();
 
       const orgLeaveTypes = await db.query.leaveTypes.findMany({
         where: and(
@@ -346,14 +336,8 @@ export const adminRouter = router({
             await db.insert(leaveBalances).values(
               orgLeaveTypes.map((lt) => {
                 const annual = parseFloat(lt.defaultAnnualDays);
-                let entitlement: number;
-                if (lt.accrualMethod === "front_loaded") {
-                  entitlement = annual;
-                } else if (lt.accrualMethod === "monthly") {
-                  entitlement = parseFloat(((annual / 12) * monthsRemaining).toFixed(2));
-                } else {
-                  entitlement = 0;
-                }
+                // Always use the full policy entitlement — no pro-rating on hire.
+                const entitlement = annual;
                 return {
                   userId: newUser.id,
                   leaveTypeId: lt.id,
@@ -994,6 +978,7 @@ export const adminRouter = router({
     .input(
       z.object({
         departmentId: z.string().uuid().optional(),
+        leaveTypeId: z.string().uuid().optional(),
         userId: z.string().uuid().optional(),
         ruleType: z.enum([
           "advance_notice",
@@ -1017,6 +1002,7 @@ export const adminRouter = router({
         .values({
           organizationId: ctx.user.organizationId,
           departmentId: input.departmentId ?? null,
+          leaveTypeId: input.leaveTypeId ?? null,
           userId: input.userId ?? null,
           ruleType: input.ruleType,
           parameters: input.parameters,
@@ -1048,6 +1034,7 @@ export const adminRouter = router({
     .input(
       z.object({
         ruleId: z.string().uuid(),
+        leaveTypeId: z.string().uuid().nullish(),
         parameters: z.record(z.string(), z.unknown()),
         effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         effectiveUntil: z
@@ -1073,6 +1060,7 @@ export const adminRouter = router({
           priority: input.priority ?? existing.priority,
           effectiveFrom: input.effectiveFrom,
           effectiveUntil: input.effectiveUntil ?? null,
+          ...(input.leaveTypeId !== undefined ? { leaveTypeId: input.leaveTypeId ?? null } : {}),
           updatedAt: new Date(),
         })
         .where(eq(policyRules.id, input.ruleId));
@@ -1668,5 +1656,130 @@ export const adminRouter = router({
       }
 
       throw new TRPCError({ code: "BAD_REQUEST", message: "Unknown report type." });
+    }),
+
+  // =========================================================================
+  // Retroactive Leave
+  // =========================================================================
+
+  /**
+   * Admin-only: record a past leave event directly as approved.
+   * Bypasses all policy validation. Useful for back-filling leave that was
+   * not logged at the time.
+   */
+  recordRetroactiveLeave: adminProcedure
+    .input(
+      z.object({
+        userId: z.string().uuid(),
+        leaveTypeId: z.string().uuid(),
+        startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        reason: z.string().max(1000).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (input.startDate > input.endDate) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Start date must be on or before end date.",
+        });
+      }
+
+      // Verify employee belongs to this org
+      const employee = await db.query.users.findFirst({
+        where: and(
+          eq(users.id, input.userId),
+          eq(users.organizationId, ctx.user.organizationId)
+        ),
+        with: { organization: { columns: { workSchedule: true, holidayCalendar: true } } },
+      });
+      if (!employee) throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found." });
+
+      const workSchedule = employee.organization?.workSchedule as
+        | { workDays: number[] } | null | undefined;
+      const holidayCalendar = employee.organization?.holidayCalendar as
+        | { holidays: { date: string; name: string }[] } | null | undefined;
+
+      const totalBusinessDays = countBusinessDays(
+        input.startDate,
+        input.endDate,
+        workSchedule ?? null,
+        holidayCalendar?.holidays?.map((h) => h.date) ?? null
+      );
+      const totalCalendarDays = countCalendarDays(input.startDate, input.endDate);
+      const year = new Date(input.startDate).getFullYear();
+
+      const request = await db.transaction(async (tx) => {
+        const [req] = await tx
+          .insert(leaveRequests)
+          .values({
+            userId: input.userId,
+            leaveTypeId: input.leaveTypeId,
+            startDate: input.startDate,
+            endDate: input.endDate,
+            totalBusinessDays: totalBusinessDays.toFixed(2),
+            totalCalendarDays,
+            status: "approved",
+            reason: input.reason ?? "Retroactive leave entry",
+            submittedAt: new Date(),
+            decidedAt: new Date(),
+            policyOverrideUsed: false,
+          })
+          .returning();
+
+        // Deduct from used balance for that year; create balance row if missing
+        const existingBalance = await tx.query.leaveBalances.findFirst({
+          where: and(
+            eq(leaveBalances.userId, input.userId),
+            eq(leaveBalances.leaveTypeId, input.leaveTypeId),
+            eq(leaveBalances.year, year)
+          ),
+        });
+
+        if (existingBalance) {
+          await tx
+            .update(leaveBalances)
+            .set({ used: sql`${leaveBalances.used} + ${totalBusinessDays}` })
+            .where(
+              and(
+                eq(leaveBalances.userId, input.userId),
+                eq(leaveBalances.leaveTypeId, input.leaveTypeId),
+                eq(leaveBalances.year, year)
+              )
+            );
+        } else {
+          const lt = await tx.query.leaveTypes.findFirst({
+            where: eq(leaveTypes.id, input.leaveTypeId),
+          });
+          const annual = lt ? parseFloat(lt.defaultAnnualDays) : 0;
+          await tx.insert(leaveBalances).values({
+            userId: input.userId,
+            leaveTypeId: input.leaveTypeId,
+            year,
+            totalEntitled: annual.toFixed(2),
+            used: totalBusinessDays.toFixed(2),
+          });
+        }
+
+        return req;
+      });
+
+      await appendAuditLog({
+        organizationId: ctx.user.organizationId,
+        userId: ctx.user.id,
+        action: AUDIT_ACTIONS.LEAVE_APPROVED,
+        entityType: "leave_request",
+        entityId: request.id,
+        newValues: {
+          retroactive: true,
+          userId: input.userId,
+          leaveTypeId: input.leaveTypeId,
+          startDate: input.startDate,
+          endDate: input.endDate,
+          totalBusinessDays,
+        },
+      });
+
+      return request;
     }),
 });

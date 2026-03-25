@@ -351,6 +351,7 @@ const RULE_DESCRIPTIONS: Record<string, string> = {
 type PRForm = {
   ruleType: string;
   departmentId: string;
+  leaveTypeId: string;
   priority: string;
   effectiveFrom: string;
   effectiveUntil: string;
@@ -373,6 +374,7 @@ type PRForm = {
 const EMPTY_PR: PRForm = {
   ruleType: "advance_notice",
   departmentId: "",
+  leaveTypeId: "",
   priority: "10",
   effectiveFrom: "",
   effectiveUntil: "",
@@ -453,11 +455,12 @@ function ruleSummary(rule: PolicyRule): string {
 }
 
 function PolicyRuleDialog({
-  mode, rule, departments, open, onClose,
+  mode, rule, departments, leaveTypes, open, onClose,
 }: {
   mode: "create" | "edit";
   rule: PolicyRule | null;
   departments: Department[];
+  leaveTypes: LeaveType[];
   open: boolean;
   onClose: () => void;
 }) {
@@ -467,6 +470,7 @@ function PolicyRuleDialog({
           ...EMPTY_PR,
           ruleType: rule.ruleType,
           departmentId: rule.departmentId ?? "",
+          leaveTypeId: rule.leaveTypeId ?? "",
           priority: rule.priority.toString(),
           effectiveFrom: rule.effectiveFrom.toString().slice(0, 10),
           effectiveUntil: rule.effectiveUntil ? rule.effectiveUntil.toString().slice(0, 10) : "",
@@ -505,6 +509,7 @@ function PolicyRuleDialog({
     const payload = {
       ruleType: form.ruleType as "advance_notice" | "consecutive_cap" | "coverage_min" | "blackout" | "balance_override",
       departmentId: form.departmentId || undefined,
+      leaveTypeId: form.leaveTypeId || undefined,
       priority: parseInt(form.priority) || 10,
       effectiveFrom: form.effectiveFrom,
       effectiveUntil: form.effectiveUntil || undefined,
@@ -540,7 +545,7 @@ function PolicyRuleDialog({
               </p>
             )}
 
-            {/* Rule type + Department */}
+            {/* Rule type + Department + Leave Type */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="pr-type">Rule Type</Label>
@@ -565,6 +570,18 @@ function PolicyRuleDialog({
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="pr-lt">Leave Type <span className="font-normal text-slate-400">(opt — leave blank to apply to all types)</span></Label>
+              <Select value={form.leaveTypeId || "_all"} onValueChange={(v) => setForm((p) => ({ ...p, leaveTypeId: v === "_all" ? "" : (v ?? "") }))}>
+                <SelectTrigger id="pr-lt" className="w-full"><SelectValue placeholder="All leave types" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_all">All leave types</SelectItem>
+                  {leaveTypes.map((lt) => (
+                    <SelectItem key={lt.id} value={lt.id}>{lt.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Dates + Priority */}
@@ -741,8 +758,10 @@ function PolicyRulesTab({ departments }: { departments: Department[] }) {
   const [typeFilter, setTypeFilter] = useState("");
 
   const { data: rules = [], isLoading } = trpc.admin.listPolicyRules.useQuery({ activeOnly: false });
+  const { data: leaveTypes = [] } = trpc.admin.listLeaveTypes.useQuery();
 
   const deptMap = new Map(departments.map((d) => [d.id, d.name]));
+  const ltMap = new Map((leaveTypes as unknown as LeaveType[]).map((lt) => [lt.id, lt.name]));
 
   const filtered = typeFilter
     ? (rules as unknown as PolicyRule[]).filter((r) => r.ruleType === typeFilter)
@@ -791,6 +810,8 @@ function PolicyRulesTab({ departments }: { departments: Department[] }) {
                 <p className="mt-0.5 text-xs text-slate-500">
                   {rule.departmentId ? deptMap.get(rule.departmentId) ?? rule.departmentId : "All departments"}
                   {" · "}
+                  {rule.leaveTypeId ? (ltMap.get(rule.leaveTypeId) ?? rule.leaveTypeId) : "All leave types"}
+                  {" · "}
                   From {rule.effectiveFrom.toString().slice(0, 10)}
                   {rule.effectiveUntil ? ` → ${rule.effectiveUntil.toString().slice(0, 10)}` : ""}
                 </p>
@@ -819,9 +840,9 @@ function PolicyRulesTab({ departments }: { departments: Department[] }) {
         </div>
       )}
 
-      <PolicyRuleDialog mode="create" rule={null} departments={departments} open={createOpen} onClose={() => setCreateOpen(false)} />
+      <PolicyRuleDialog mode="create" rule={null} departments={departments} leaveTypes={leaveTypes as unknown as LeaveType[]} open={createOpen} onClose={() => setCreateOpen(false)} />
       {editRule && (
-        <PolicyRuleDialog mode="edit" rule={editRule} departments={departments} open={!!editRule} onClose={() => setEditRule(null)} />
+        <PolicyRuleDialog mode="edit" rule={editRule} departments={departments} leaveTypes={leaveTypes as unknown as LeaveType[]} open={!!editRule} onClose={() => setEditRule(null)} />
       )}
       {deleteRule && (
         <DeletePolicyRuleDialog rule={deleteRule} open={!!deleteRule} onClose={() => setDeleteRule(null)} />

@@ -122,23 +122,56 @@ function resolvePolicy<T>(
   deptId: string | null,
   userId: string,
   ruleType: string,
-  allRules: PolicyRule[]
+  allRules: PolicyRule[],
+  leaveTypeId?: string
 ): T | null {
-  const rules = allRules.filter((r) => r.ruleType === ruleType);
+  // Filter to this rule type, then keep rules that apply to all leave types
+  // OR specifically to the requested leave type (null = applies to all).
+  const rules = allRules.filter(
+    (r) =>
+      r.ruleType === ruleType &&
+      (r.leaveTypeId === null || r.leaveTypeId === (leaveTypeId ?? null))
+  );
   if (!rules.length) return null;
 
+  // Specificity order (highest wins):
+  //   user > dept+leaveType > dept > leaveType-only > org-wide
   const userRules = rules.filter((r) => r.userId === userId);
+  const deptLeaveTypeRules =
+    deptId && leaveTypeId
+      ? rules.filter(
+          (r) =>
+            r.userId === null &&
+            r.departmentId === deptId &&
+            r.leaveTypeId === leaveTypeId
+        )
+      : [];
   const deptRules = deptId
-    ? rules.filter((r) => r.userId === null && r.departmentId === deptId)
+    ? rules.filter(
+        (r) =>
+          r.userId === null && r.departmentId === deptId && r.leaveTypeId === null
+      )
+    : [];
+  const leaveTypeRules = leaveTypeId
+    ? rules.filter(
+        (r) =>
+          r.userId === null &&
+          r.departmentId === null &&
+          r.leaveTypeId === leaveTypeId
+      )
     : [];
   const orgRules = rules.filter(
-    (r) => r.userId === null && r.departmentId === null
+    (r) => r.userId === null && r.departmentId === null && r.leaveTypeId === null
   );
 
   const candidates = userRules.length
     ? userRules
+    : deptLeaveTypeRules.length
+    ? deptLeaveTypeRules
     : deptRules.length
     ? deptRules
+    : leaveTypeRules.length
+    ? leaveTypeRules
     : orgRules;
 
   if (!candidates.length) return null;
@@ -200,7 +233,8 @@ function validateAdvanceNotice(
     input.departmentId,
     input.userId,
     "advance_notice",
-    allRules
+    allRules,
+    input.leaveTypeId
   );
 
   const tiers = params?.tiers ?? DEFAULT_ADVANCE_NOTICE_TIERS;
@@ -239,7 +273,8 @@ function validateConsecutiveDays(
       input.departmentId,
       input.userId,
       "consecutive_cap",
-      allRules
+      allRules,
+      input.leaveTypeId
     ) ?? DEFAULT_CONSECUTIVE_CAP;
 
   if (input.totalCalendarDays > params.max_consecutive_days) {
@@ -265,7 +300,8 @@ async function validateGap(
       input.departmentId,
       input.userId,
       "consecutive_cap",
-      allRules
+      allRules,
+      input.leaveTypeId
     ) ?? DEFAULT_CONSECUTIVE_CAP;
 
   // Only applies when this request qualifies as a "long block"

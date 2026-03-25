@@ -296,6 +296,7 @@ export const policyRules = pgTable("policy_rules", {
   departmentId: uuid("department_id").references(() => departments.id, {
     onDelete: "cascade",
   }),
+  leaveTypeId: uuid("leave_type_id").references(() => leaveTypes.id, { onDelete: "cascade" }),
   userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
   ruleType: ruleTypeEnum("rule_type").notNull(),
   parameters: jsonb("parameters").notNull(),

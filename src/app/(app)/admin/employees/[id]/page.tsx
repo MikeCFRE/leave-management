@@ -6,7 +6,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { parseLocalDate } from "@/lib/date-utils";
 import {
-  AlertCircle, ArrowLeft, Loader2, Mail, Minus, Plus,
+  AlertCircle, ArrowLeft, History, Loader2, Mail, Minus, Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -173,6 +173,128 @@ function AdjustBalanceDialog({
 }
 
 // ---------------------------------------------------------------------------
+// Retroactive leave dialog
+// ---------------------------------------------------------------------------
+
+function RetroactiveLeaveDialog({
+  userId, open, onClose,
+}: {
+  userId: string;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const utils = trpc.useUtils();
+  const { data: leaveTypes = [] } = trpc.admin.listLeaveTypes.useQuery();
+  const [form, setForm] = useState({
+    leaveTypeId: "",
+    startDate: "",
+    endDate: "",
+    reason: "",
+  });
+
+  const record = trpc.admin.recordRetroactiveLeave.useMutation({
+    onSuccess: () => {
+      toast.success("Past leave recorded.");
+      utils.admin.getUser.invalidate({ userId });
+      setForm({ leaveTypeId: "", startDate: "", endDate: "", reason: "" });
+      onClose();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.leaveTypeId || !form.startDate || !form.endDate) return;
+    record.mutate({
+      userId,
+      leaveTypeId: form.leaveTypeId,
+      startDate: form.startDate,
+      endDate: form.endDate,
+      reason: form.reason.trim() || undefined,
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o && !record.isPending) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Record Past Leave</DialogTitle>
+            <DialogDescription>
+              Retroactively log leave that happened in the past. This creates an approved request and deducts from the balance — no policy checks apply.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="retro-lt">Leave Type</Label>
+              <Select
+                value={form.leaveTypeId}
+                onValueChange={(v) => setForm((p) => ({ ...p, leaveTypeId: v ?? "" }))}
+              >
+                <SelectTrigger id="retro-lt" className="w-full">
+                  <SelectValue placeholder="Select leave type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(leaveTypes as Array<{ id: string; name: string }>).map((lt) => (
+                    <SelectItem key={lt.id} value={lt.id}>{lt.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="retro-start">Start Date</Label>
+                <input
+                  id="retro-start"
+                  type="date"
+                  value={form.startDate}
+                  max={form.endDate || undefined}
+                  onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))}
+                  required
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="retro-end">End Date</Label>
+                <input
+                  id="retro-end"
+                  type="date"
+                  value={form.endDate}
+                  min={form.startDate || undefined}
+                  onChange={(e) => setForm((p) => ({ ...p, endDate: e.target.value }))}
+                  required
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="retro-reason">Reason <span className="font-normal text-slate-400">(opt)</span></Label>
+              <Textarea
+                id="retro-reason"
+                value={form.reason}
+                onChange={(e) => setForm((p) => ({ ...p, reason: e.target.value }))}
+                placeholder="e.g. Forgot to log vacation in January"
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <DialogClose render={<Button variant="outline" />} disabled={record.isPending}>Cancel</DialogClose>
+            <Button
+              type="submit"
+              disabled={record.isPending || !form.leaveTypeId || !form.startDate || !form.endDate}
+            >
+              {record.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Record Leave
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Deactivate dialog
 // ---------------------------------------------------------------------------
 
@@ -299,6 +421,7 @@ function DeactivateDialog({
 export default function EmployeeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [adjustBalance, setAdjustBalance] = useState<BalanceRow | null>(null);
+  const [retroLeaveOpen, setRetroLeaveOpen] = useState(false);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -561,10 +684,14 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       )}
 
       {/* Recent requests */}
-      {recentRequests.length > 0 && (
+      {recentRequests.length >= 0 && (
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base">Recent Requests</CardTitle>
+            <Button variant="outline" size="sm" onClick={() => setRetroLeaveOpen(true)}>
+              <History className="mr-1.5 h-3.5 w-3.5" />
+              Record Past Leave
+            </Button>
           </CardHeader>
           <CardContent className="divide-y">
             {recentRequests.map((req) => {
@@ -632,6 +759,11 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
         balance={adjustBalance}
         open={!!adjustBalance}
         onClose={() => setAdjustBalance(null)}
+      />
+      <RetroactiveLeaveDialog
+        userId={id}
+        open={retroLeaveOpen}
+        onClose={() => setRetroLeaveOpen(false)}
       />
       <DeactivateDialog
         userId={id}
