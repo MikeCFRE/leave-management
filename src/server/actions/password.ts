@@ -25,7 +25,9 @@ export async function requestPasswordReset(
   if (!email) return { error: "Email is required" };
 
   // Fire-and-forget — don't block the response waiting for the email
-  sendPasswordResetEmail(email).catch(() => {});
+  sendPasswordResetEmail(email).catch((err) => {
+    console.error("[requestPasswordReset] Failed to send reset email:", err);
+  });
 
   // Always return success — prevents email enumeration
   return { success: true };
