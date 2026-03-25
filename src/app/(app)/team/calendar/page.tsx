@@ -201,7 +201,7 @@ export default function TeamCalendarPage() {
                   This will cancel the approved{" "}
                   <strong>{cancelTarget.leaveType.name}</strong> leave for{" "}
                   <strong>{cancelTarget.user.firstName} {cancelTarget.user.lastName}</strong>{" "}
-                  ({format(parseLocalDate(cancelTarget.startDate.toString()), "MMM d")} – {format(parseLocalDate(cancelTarget.endDate.toString()), "MMM d, yyyy")}).
+                  ({format(parseLocalDate(cancelTarget.startDate), "MMM d")} – {format(parseLocalDate(cancelTarget.endDate), "MMM d, yyyy")}).
                   The employee will be notified by email and their balance will be restored.
                 </>
               )}
@@ -305,7 +305,7 @@ export default function TeamCalendarPage() {
                           </p>
                           <p className="mt-0.5 text-xs text-slate-500">{evt.leaveType.name}</p>
                           <p className="mt-0.5 text-xs text-slate-400">
-                            {format(parseLocalDate(evt.startDate.toString()), "MMM d")} – {format(parseLocalDate(evt.endDate.toString()), "MMM d")} · {days.toFixed(1)}d
+                            {format(parseLocalDate(evt.startDate), "MMM d")} – {format(parseLocalDate(evt.endDate), "MMM d")} · {days.toFixed(1)}d
                           </p>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">

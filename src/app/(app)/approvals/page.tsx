@@ -139,11 +139,11 @@ function QueueCard({
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-600">
           <span>
             <span className="font-medium">
-              {format(parseLocalDate(request.startDate.toString()), "MMM d")}
+              {format(parseLocalDate(request.startDate), "MMM d")}
             </span>
             {" – "}
             <span className="font-medium">
-              {format(parseLocalDate(request.endDate.toString()), "MMM d, yyyy")}
+              {format(parseLocalDate(request.endDate), "MMM d, yyyy")}
             </span>
           </span>
           <span className="text-slate-400">

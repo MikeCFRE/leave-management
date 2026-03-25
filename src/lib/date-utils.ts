@@ -87,9 +87,11 @@ export function formatDate(date: Date): string {
  * Parse a YYYY-MM-DD string as local midnight.
  * `new Date("2024-04-10")` parses as UTC midnight, which in US timezones
  * renders as April 9. This parses as local time instead.
+ * Accepts string | Date so Drizzle date columns work without manual toString().
  */
-export function parseLocalDate(dateStr: string): Date {
-  const [year, month, day] = dateStr.split("-").map(Number);
+export function parseLocalDate(date: string | Date): Date {
+  const str = typeof date === "string" ? date : format(date, "yyyy-MM-dd");
+  const [year, month, day] = str.split("-").map(Number);
   return new Date(year, month - 1, day);
 }
 

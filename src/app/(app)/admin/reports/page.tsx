@@ -384,7 +384,7 @@ function AllRequestsReport({ departments }: { departments: { id: string; name: s
                   This will cancel the approved{" "}
                   <strong>{(cancelTarget as typeof cancelTarget & { leaveType: { name: string } }).leaveType.name}</strong> leave for{" "}
                   <strong>{(cancelTarget as typeof cancelTarget & { user: { firstName: string; lastName: string } }).user.firstName} {(cancelTarget as typeof cancelTarget & { user: { firstName: string; lastName: string } }).user.lastName}</strong>{" "}
-                  ({format(parseLocalDate(cancelTarget.startDate.toString()), "MMM d")} – {format(parseLocalDate(cancelTarget.endDate.toString()), "MMM d, yyyy")}).
+                  ({format(parseLocalDate(cancelTarget.startDate), "MMM d")} – {format(parseLocalDate(cancelTarget.endDate), "MMM d, yyyy")}).
                   The employee will be notified by email and their balance will be restored.
                 </>
               )}
