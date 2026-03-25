@@ -3,10 +3,12 @@
 import { useState, useMemo } from "react";
 import { format, addMonths, subMonths, parseISO } from "date-fns";
 import { parseLocalDate } from "@/lib/date-utils";
-import { Cake, ChevronLeft, ChevronRight, Loader2, Pencil, Star, Trash2 } from "lucide-react";
+import { Cake, Check, ChevronLeft, ChevronRight, Loader2, Pencil, Star, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
@@ -39,13 +41,13 @@ function monthBounds(year: number, month: number): { start: string; end: string 
 function buildGrid(year: number, month: number): (number | null)[] {
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
-  const startOffset = (firstDay.getDay() + 6) % 7; // Mon=0
+  const startOffset = firstDay.getDay(); // Sun=0
   const cells: (number | null)[] = Array(startOffset).fill(null);
   for (let d = 1; d <= lastDay.getDate(); d++) cells.push(d);
   return cells;
 }
 
-const WEEK_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
+const WEEK_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 
 // Stable per-person color derived from userId
 const PERSON_COLORS = [
@@ -230,6 +232,7 @@ export default function TeamCalendarPage() {
   const { data: session } = useSession();
   const role = session?.user?.role ?? "employee";
   const isAdmin = role === "admin" || role === "super_admin";
+  const isApprover = role === "manager" || isAdmin;
 
   const [anchor, setAnchor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
@@ -237,6 +240,13 @@ export default function TeamCalendarPage() {
   const [editTarget, setEditTarget] = useState<{ id: string; startDate: string; endDate: string } | null>(null);
   const [editStart, setEditStart] = useState("");
   const [editEnd, setEditEnd] = useState("");
+
+  // Add important date dialog
+  const [addDateOpen, setAddDateOpen] = useState(false);
+  const [newDateName, setNewDateName] = useState("");
+  const [newDateDate, setNewDateDate] = useState("");
+  const [newDateDesc, setNewDateDesc] = useState("");
+  const [newDateVis, setNewDateVis] = useState<"all" | "admin_only">("all");
 
   const utils = trpc.useUtils();
   const cancelMutation = trpc.admin.cancelLeaveRequest.useMutation({
@@ -260,6 +270,50 @@ export default function TeamCalendarPage() {
       toast.error(err.message ?? "Failed to update request.");
     },
   });
+
+  const approveMutation = trpc.approval.approve.useMutation({
+    onSuccess: () => {
+      toast.success("Leave request approved.");
+      utils.user.getTeamCalendar.invalidate();
+      utils.user.getImportantDates.invalidate();
+    },
+    onError: (err) => {
+      toast.error(err.message ?? "Failed to approve request.");
+    },
+  });
+
+  const addImportantDateMutation = trpc.admin.addImportantDate.useMutation({
+    onSuccess: () => {
+      toast.success("Important date added.");
+      utils.user.getImportantDates.invalidate();
+      setAddDateOpen(false);
+      setNewDateName("");
+      setNewDateDate("");
+      setNewDateDesc("");
+      setNewDateVis("all");
+    },
+    onError: (err) => {
+      toast.error(err.message ?? "Failed to add date.");
+    },
+  });
+
+  function openAddDate(prefilledDate?: string) {
+    setNewDateDate(prefilledDate ?? "");
+    setNewDateName("");
+    setNewDateDesc("");
+    setNewDateVis("all");
+    setAddDateOpen(true);
+  }
+
+  function submitAddDate() {
+    if (!newDateName.trim() || !newDateDate) return;
+    addImportantDateMutation.mutate({
+      name: newDateName.trim(),
+      date: newDateDate,
+      description: newDateDesc.trim() || undefined,
+      visibility: newDateVis,
+    });
+  }
 
   function openEdit(evt: { id: string; startDate: unknown; endDate: unknown }) {
     const start = String(evt.startDate).slice(0, 10);
@@ -403,10 +457,85 @@ export default function TeamCalendarPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Add Important Date dialog */}
+      <Dialog open={addDateOpen} onOpenChange={(o) => { if (!o) setAddDateOpen(false); }}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Add Important Date</DialogTitle>
+            <DialogDescription>
+              This date will appear with a yellow highlight in the team calendar.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-2 space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="idate-name">Event Name</Label>
+              <Input
+                id="idate-name"
+                placeholder="e.g. Property Takeover — 123 Main St"
+                value={newDateName}
+                onChange={(e) => setNewDateName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="idate-date">Date</Label>
+              <Input
+                id="idate-date"
+                type="date"
+                value={newDateDate}
+                onChange={(e) => setNewDateDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="idate-desc">Description <span className="font-normal text-slate-400">(optional)</span></Label>
+              <Textarea
+                id="idate-desc"
+                placeholder="Additional details…"
+                value={newDateDesc}
+                onChange={(e) => setNewDateDesc(e.target.value)}
+                rows={2}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="idate-vis">Visible to</Label>
+              <Select value={newDateVis} onValueChange={(v) => setNewDateVis((v ?? "all") as "all" | "admin_only")}>
+                <SelectTrigger id="idate-vis" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Everyone</SelectItem>
+                  <SelectItem value="admin_only">Admins only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+            <Button
+              onClick={submitAddDate}
+              disabled={addImportantDateMutation.isPending || !newDateName.trim() || !newDateDate}
+            >
+              {addImportantDateMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Add Date
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-xl font-semibold text-slate-900">Team Calendar</h2>
         <div className="flex items-center gap-2">
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => openAddDate(selectedDay ?? undefined)}
+              className="gap-1.5 text-yellow-700 border-yellow-300 hover:bg-yellow-50"
+            >
+              <Star className="h-3.5 w-3.5 fill-yellow-400 stroke-yellow-500" />
+              Add Important Date
+            </Button>
+          )}
           <Button variant="outline" size="icon" onClick={() => { setAnchor((a) => subMonths(a, 6)); setSelectedDay(null); }} aria-label="Previous">
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -471,9 +600,22 @@ export default function TeamCalendarPage() {
         {/* Day detail panel */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">
-              {selectedDay ? format(parseISO(selectedDay), "EEEE, MMM d") : "Select a day"}
-            </CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-sm font-medium text-slate-500">
+                {selectedDay ? format(parseISO(selectedDay), "EEEE, MMM d") : "Select a day"}
+              </CardTitle>
+              {isAdmin && selectedDay && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-yellow-500 hover:text-yellow-600 hover:bg-yellow-50 shrink-0"
+                  title="Mark as important date"
+                  onClick={() => openAddDate(selectedDay)}
+                >
+                  <Star className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {!selectedDay ? (
@@ -538,6 +680,20 @@ export default function TeamCalendarPage() {
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                           <StatusBadge status={evt.status} />
+                          {isApprover && evt.status === "pending" && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                              onClick={() => approveMutation.mutate({ requestId: evt.id })}
+                              disabled={approveMutation.isPending}
+                              title="Approve this leave request"
+                            >
+                              {approveMutation.isPending
+                                ? <Loader2 className="h-3 w-3 animate-spin" />
+                                : <Check className="h-3 w-3" />}
+                            </Button>
+                          )}
                           {isAdmin && evt.status === "approved" && (
                             <>
                               <Button

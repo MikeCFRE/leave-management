@@ -1213,6 +1213,37 @@ export const adminRouter = router({
       return { success: true };
     }),
 
+  addImportantDate: adminProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).max(200),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        description: z.string().max(500).optional(),
+        visibility: z.enum(["all", "admin_only"]),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const org = await db.query.organizations.findFirst({
+        where: eq(organizations.id, ctx.user.organizationId),
+        columns: { importantDates: true },
+      });
+      type ImpDate = { id: string; name: string; date: string; description?: string; visibility: "all" | "admin_only" };
+      const existing = (org?.importantDates as { dates?: ImpDate[] } | null)?.dates ?? [];
+      const entry: ImpDate = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        name: input.name,
+        date: input.date,
+        description: input.description,
+        visibility: input.visibility,
+      };
+      const updated = [...existing, entry].sort((a, b) => a.date.localeCompare(b.date));
+      await db
+        .update(organizations)
+        .set({ importantDates: { dates: updated }, updatedAt: new Date() })
+        .where(eq(organizations.id, ctx.user.organizationId));
+      return entry;
+    }),
+
   // =========================================================================
   // All Leave Requests (admin view)
   // =========================================================================
