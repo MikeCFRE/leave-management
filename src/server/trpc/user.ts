@@ -132,10 +132,12 @@ export const userRouter = router({
         });
       }
 
+      const isAdmin = ctx.user.role === "admin" || ctx.user.role === "super_admin";
       const teamMembers = await db.query.users.findMany({
         where: and(
           eq(users.organizationId, ctx.user.organizationId),
-          ctx.user.departmentId
+          isNull(users.deletedAt),
+          !isAdmin && ctx.user.departmentId
             ? eq(users.departmentId, ctx.user.departmentId)
             : undefined
         ),
@@ -198,10 +200,12 @@ export const userRouter = router({
         });
       }
 
+      const isAdmin = ctx.user.role === "admin" || ctx.user.role === "super_admin";
       const teamMembers = await db.query.users.findMany({
         where: and(
           eq(users.organizationId, ctx.user.organizationId),
-          ctx.user.departmentId
+          isNull(users.deletedAt),
+          !isAdmin && ctx.user.departmentId
             ? eq(users.departmentId, ctx.user.departmentId)
             : undefined
         ),
