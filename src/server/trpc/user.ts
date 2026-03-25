@@ -3,7 +3,7 @@ import { z } from "zod";
 import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { protectedProcedure, router } from "./trpc";
 import { db } from "@/server/db";
-import { leaveRequests, notifications, users } from "@/server/db/schema";
+import { leaveRequests, notifications, organizations, users } from "@/server/db/schema";
 import { markNotificationsRead } from "@/server/services/notification-service";
 
 // ---------------------------------------------------------------------------
@@ -286,5 +286,16 @@ export const userRouter = router({
           : String(raw).slice(0, 10);
         return { id: m.id, firstName: m.firstName, lastName: m.lastName, birthday };
       });
+  }),
+
+  getImportantDates: protectedProcedure.query(async ({ ctx }) => {
+    const org = await db.query.organizations.findFirst({
+      where: eq(organizations.id, ctx.user.organizationId),
+      columns: { importantDates: true },
+    });
+    const isAdmin = ctx.user.role === "admin" || ctx.user.role === "super_admin";
+    type ImportantDate = { id: string; name: string; date: string; description?: string; visibility: "all" | "admin_only" };
+    const raw = (org?.importantDates as { dates?: ImportantDate[] } | null)?.dates ?? [];
+    return raw.filter((d) => d.visibility === "all" || isAdmin);
   }),
 });

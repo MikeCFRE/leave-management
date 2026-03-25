@@ -79,7 +79,8 @@ export const organizations = pgTable("organizations", {
   timezone: text("timezone").notNull().default("America/New_York"),
   fiscalYearStartMonth: integer("fiscal_year_start_month").notNull().default(1),
   workSchedule: jsonb("work_schedule"), // { workDays: [1,2,3,4,5] }
-  holidayCalendar: jsonb("holiday_calendar"), // { holidays: ["2026-01-01", ...] }
+  holidayCalendar: jsonb("holiday_calendar"), // { holidays: [{date, name},...] }
+  importantDates: jsonb("important_dates"), // { dates: [{id,name,date,description,visibility},...] }
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),

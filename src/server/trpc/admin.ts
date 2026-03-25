@@ -1186,6 +1186,17 @@ export const adminRouter = router({
         holidayCalendar: z
           .object({ holidays: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), name: z.string() })) })
           .optional(),
+        importantDates: z
+          .object({
+            dates: z.array(z.object({
+              id: z.string(),
+              name: z.string().min(1).max(200),
+              date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+              description: z.string().max(500).optional(),
+              visibility: z.enum(["all", "admin_only"]),
+            })),
+          })
+          .optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {

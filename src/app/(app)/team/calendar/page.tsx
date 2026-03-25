@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { format, addMonths, subMonths, parseISO } from "date-fns";
 import { parseLocalDate } from "@/lib/date-utils";
-import { Cake, ChevronLeft, ChevronRight, Loader2, Pencil, Trash2 } from "lucide-react";
+import { Cake, ChevronLeft, ChevronRight, Loader2, Pencil, Star, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,7 +39,7 @@ function monthBounds(year: number, month: number): { start: string; end: string 
 function buildGrid(year: number, month: number): (number | null)[] {
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
-  const startOffset = (firstDay.getDay() + 6) % 7;
+  const startOffset = (firstDay.getDay() + 6) % 7; // Mon=0
   const cells: (number | null)[] = Array(startOffset).fill(null);
   for (let d = 1; d <= lastDay.getDate(); d++) cells.push(d);
   return cells;
@@ -47,22 +47,75 @@ function buildGrid(year: number, month: number): (number | null)[] {
 
 const WEEK_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 
-function heatColor(count: number): string {
-  if (count === 0) return "";
-  if (count === 1) return "bg-sky-200";
-  if (count === 2) return "bg-blue-400";
-  if (count === 3) return "bg-indigo-500";
-  return "bg-violet-700";
+// Stable per-person color derived from userId
+const PERSON_COLORS = [
+  "bg-blue-500",
+  "bg-indigo-500",
+  "bg-violet-500",
+  "bg-emerald-500",
+  "bg-amber-500",
+  "bg-rose-500",
+  "bg-teal-500",
+  "bg-orange-500",
+  "bg-cyan-500",
+  "bg-pink-500",
+];
+
+function personColor(userId: string): string {
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    hash = (hash * 31 + userId.charCodeAt(i)) & 0x7fffffff;
+  }
+  return PERSON_COLORS[hash % PERSON_COLORS.length];
+}
+
+function initials(firstName: string, lastName: string): string {
+  return ((firstName[0] ?? "") + (lastName[0] ?? "")).toUpperCase();
 }
 
 // ---------------------------------------------------------------------------
-// Mini month grid
+// Types
 // ---------------------------------------------------------------------------
 
-function MiniMonth({
+type CalEvent = {
+  id: string;
+  status: string;
+  startDate: unknown;
+  endDate: unknown;
+  totalBusinessDays: string;
+  user: { id: string; firstName: string; lastName: string; departmentId: string | null };
+  leaveType: { id: string; name: string };
+};
+
+// ---------------------------------------------------------------------------
+// Initials chip
+// ---------------------------------------------------------------------------
+
+function InitialsChip({ userId, firstName, lastName, pending }: { userId: string; firstName: string; lastName: string; pending: boolean }) {
+  const ini = initials(firstName, lastName);
+  return (
+    <span
+      title={`${firstName} ${lastName}${pending ? " (pending)" : ""}`}
+      className={[
+        "inline-flex items-center justify-center rounded text-white font-bold leading-none",
+        "h-4 w-4 text-[8px] shrink-0",
+        pending ? "bg-slate-400" : personColor(userId),
+      ].join(" ")}
+    >
+      {ini}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Month grid (large cells with initials)
+// ---------------------------------------------------------------------------
+
+function BigMonth({
   year,
   month,
-  countMap,
+  peopleMap,
+  importantDates,
   birthdayDates,
   selectedDay,
   todayStr,
@@ -70,7 +123,8 @@ function MiniMonth({
 }: {
   year: number;
   month: number;
-  countMap: Map<string, number>;
+  peopleMap: Map<string, CalEvent[]>;
+  importantDates: Set<string>;
   birthdayDates: Set<string>;
   selectedDay: string | null;
   todayStr: string;
@@ -84,7 +138,7 @@ function MiniMonth({
         {format(new Date(year, month, 1), "MMMM yyyy")}
       </p>
       {/* Day-of-week header */}
-      <div className="grid grid-cols-7 gap-px mb-px">
+      <div className="grid grid-cols-7 gap-px mb-0.5">
         {WEEK_LABELS.map((lbl, i) => (
           <div key={i} className="text-center text-[10px] font-semibold text-slate-400 pb-0.5">
             {lbl}
@@ -94,28 +148,70 @@ function MiniMonth({
       {/* Day cells */}
       <div className="grid grid-cols-7 gap-px">
         {grid.map((day, i) => {
-          if (day === null) return <div key={`e-${i}`} />;
+          if (day === null) return <div key={`e-${i}`} className="h-14" />;
           const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-          const count = countMap.get(dateStr) ?? 0;
-          const mmdd = dateStr.slice(5); // MM-DD
+          const events = peopleMap.get(dateStr) ?? [];
+          const approved = events.filter((e) => e.status === "approved");
+          const pending = events.filter((e) => e.status === "pending");
+          const mmdd = dateStr.slice(5);
           const hasBirthday = birthdayDates.has(mmdd);
+          const isImportant = importantDates.has(dateStr);
           const isToday = dateStr === todayStr;
           const isSelected = dateStr === selectedDay;
+          const allChips = [
+            ...approved.map((e) => ({ ...e, pending: false })),
+            ...pending.map((e) => ({ ...e, pending: true })),
+          ];
+          const visibleChips = allChips.slice(0, 4);
+          const overflow = allChips.length - visibleChips.length;
+
           return (
             <button
               key={dateStr}
               onClick={() => onSelect(dateStr === selectedDay ? "" : dateStr)}
               className={[
-                "relative flex aspect-square items-center justify-center rounded text-[11px] transition-colors",
-                heatColor(count),
-                count >= 4 ? "text-white" : "",
-                isSelected ? "ring-2 ring-blue-500 ring-offset-0" : "hover:bg-slate-100",
-                isToday && !isSelected ? "font-bold text-blue-600" : "font-normal",
+                "relative flex flex-col rounded p-0.5 h-14 text-left transition-colors",
+                "hover:bg-slate-50",
+                isSelected ? "ring-2 ring-blue-500 ring-inset" : "",
+                isImportant ? "ring-2 ring-yellow-400 ring-inset bg-yellow-50" : "",
+                isSelected && isImportant ? "ring-2 ring-blue-500 ring-inset bg-yellow-50" : "",
               ].filter(Boolean).join(" ")}
             >
-              {day}
+              {/* Day number */}
+              <span className={[
+                "text-[11px] leading-tight self-end pr-0.5",
+                isToday ? "font-bold text-blue-600" : "font-normal text-slate-600",
+              ].join(" ")}>
+                {day}
+              </span>
+              {/* Birthday dot */}
               {hasBirthday && (
-                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-green-500" />
+                <span className="absolute top-0.5 left-0.5 h-1.5 w-1.5 rounded-full bg-green-500" />
+              )}
+              {/* Important date star */}
+              {isImportant && (
+                <span className="absolute top-0.5 left-0.5 text-yellow-500">
+                  <Star className="h-2.5 w-2.5 fill-yellow-400 stroke-yellow-500" />
+                </span>
+              )}
+              {/* Initials chips */}
+              {allChips.length > 0 && (
+                <div className="flex flex-wrap gap-px mt-0.5">
+                  {visibleChips.map((e, ci) => (
+                    <InitialsChip
+                      key={`${e.id}-${ci}`}
+                      userId={e.user.id}
+                      firstName={e.user.firstName}
+                      lastName={e.user.lastName}
+                      pending={e.pending}
+                    />
+                  ))}
+                  {overflow > 0 && (
+                    <span className="inline-flex items-center justify-center h-4 rounded bg-slate-200 text-[8px] font-bold text-slate-600 px-0.5">
+                      +{overflow}
+                    </span>
+                  )}
+                </div>
               )}
             </button>
           );
@@ -148,7 +244,6 @@ export default function TeamCalendarPage() {
       toast.success("Leave request cancelled and employee notified.");
       setCancelTargetId(null);
       utils.user.getTeamCalendar.invalidate();
-      utils.user.getCoverageHeatmap.invalidate();
     },
     onError: (err) => {
       toast.error(err.message ?? "Failed to cancel request.");
@@ -160,7 +255,6 @@ export default function TeamCalendarPage() {
       toast.success("Leave request updated and employee notified.");
       setEditTarget(null);
       utils.user.getTeamCalendar.invalidate();
-      utils.user.getCoverageHeatmap.invalidate();
     },
     onError: (err) => {
       toast.error(err.message ?? "Failed to update request.");
@@ -175,19 +269,14 @@ export default function TeamCalendarPage() {
     setEditTarget({ id: evt.id, startDate: start, endDate: end });
   }
 
-  // Show 3 consecutive months starting from anchor
-  const months = useMemo(() => [0, 1, 2].map((offset) => {
+  // Show 6 consecutive months starting from anchor (2 rows of 3)
+  const months = useMemo(() => [0, 1, 2, 3, 4, 5].map((offset) => {
     const d = addMonths(anchor, offset);
     return { year: d.getFullYear(), month: d.getMonth() };
   }), [anchor]);
 
   const rangeStart = monthBounds(months[0].year, months[0].month).start;
-  const rangeEnd = monthBounds(months[2].year, months[2].month).end;
-
-  const { data: heatmap = [], isLoading: loadingHeat } =
-    trpc.user.getCoverageHeatmap.useQuery({ startDate: rangeStart, endDate: rangeEnd });
-
-  const { data: birthdayMembers = [] } = trpc.user.getTeamBirthdays.useQuery();
+  const rangeEnd = monthBounds(months[5].year, months[5].month).end;
 
   const { data: teamEvents = [], isLoading: loadingEvents } =
     trpc.user.getTeamCalendar.useQuery({
@@ -196,35 +285,40 @@ export default function TeamCalendarPage() {
       includeStatuses: ["approved", "pending"],
     });
 
-  const countMap = useMemo(() => {
-    const m = new Map<string, number>();
-    heatmap.forEach(({ date, count }) => m.set(date, count));
-    return m;
-  }, [heatmap]);
+  const { data: birthdayMembers = [] } = trpc.user.getTeamBirthdays.useQuery();
+  const { data: importantDatesList = [] } = trpc.user.getImportantDates.useQuery();
 
+  // Map date → events
   const peopleMap = useMemo(() => {
-    const m = new Map<string, typeof teamEvents>();
+    const m = new Map<string, CalEvent[]>();
     teamEvents.forEach((evt) => {
       const cur = new Date(evt.startDate.toString() + "T00:00:00Z");
       const last = new Date(evt.endDate.toString() + "T00:00:00Z");
       while (cur <= last) {
         const d = cur.toISOString().slice(0, 10);
         if (!m.has(d)) m.set(d, []);
-        m.get(d)!.push(evt);
+        m.get(d)!.push(evt as CalEvent);
         cur.setUTCDate(cur.getUTCDate() + 1);
       }
     });
     return m;
   }, [teamEvents]);
 
-  // Build a Set of MM-DD strings for birthday lookup
+  // Set of important date strings (YYYY-MM-DD)
+  const importantDatesSet = useMemo(() => {
+    const s = new Set<string>();
+    importantDatesList.forEach((d) => s.add(d.date));
+    return s;
+  }, [importantDatesList]);
+
+  // Birthday MM-DD set
   const birthdayMMDD = useMemo(() => {
     const s = new Set<string>();
     birthdayMembers.forEach((m) => s.add(m.birthday.slice(5)));
     return s;
   }, [birthdayMembers]);
 
-  // Map MM-DD -> people with that birthday (for detail panel)
+  // Birthday detail map MM-DD → members
   const birthdayPeopleMap = useMemo(() => {
     const m = new Map<string, typeof birthdayMembers>();
     birthdayMembers.forEach((member) => {
@@ -235,15 +329,19 @@ export default function TeamCalendarPage() {
     return m;
   }, [birthdayMembers]);
 
+  // Selected day detail
   const selectedEvents = selectedDay ? (peopleMap.get(selectedDay) ?? []) : [];
   const selectedBirthdays = selectedDay ? (birthdayPeopleMap.get(selectedDay.slice(5)) ?? []) : [];
+  const selectedImportantDate = selectedDay
+    ? importantDatesList.find((d) => d.date === selectedDay)
+    : undefined;
   const todayStr = toYMD(today);
-  const isLoading = loadingHeat || loadingEvents;
 
   const cancelTarget = selectedEvents.find((e) => e.id === cancelTargetId);
 
   return (
     <div className="space-y-4">
+      {/* Cancel dialog */}
       <Dialog open={!!cancelTargetId} onOpenChange={(o: boolean) => { if (!o) setCancelTargetId(null); }}>
         <DialogContent showCloseButton={false}>
           <DialogHeader>
@@ -254,7 +352,7 @@ export default function TeamCalendarPage() {
                   This will cancel the approved{" "}
                   <strong>{cancelTarget.leaveType.name}</strong> leave for{" "}
                   <strong>{cancelTarget.user.firstName} {cancelTarget.user.lastName}</strong>{" "}
-                  ({format(parseLocalDate(cancelTarget.startDate), "MMM d")} – {format(parseLocalDate(cancelTarget.endDate), "MMM d, yyyy")}).
+                  ({format(parseLocalDate(cancelTarget.startDate as string), "MMM d")} – {format(parseLocalDate(cancelTarget.endDate as string), "MMM d, yyyy")}).
                   The employee will be notified by email and their balance will be restored.
                 </>
               )}
@@ -309,34 +407,35 @@ export default function TeamCalendarPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-xl font-semibold text-slate-900">Team Calendar</h2>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => { setAnchor((a) => subMonths(a, 3)); setSelectedDay(null); }} aria-label="Previous">
+          <Button variant="outline" size="icon" onClick={() => { setAnchor((a) => subMonths(a, 6)); setSelectedDay(null); }} aria-label="Previous">
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="text-sm font-medium text-slate-600">
-            {format(anchor, "MMM yyyy")} – {format(addMonths(anchor, 2), "MMM yyyy")}
+            {format(anchor, "MMM yyyy")} – {format(addMonths(anchor, 5), "MMM yyyy")}
           </span>
-          <Button variant="outline" size="icon" onClick={() => { setAnchor((a) => addMonths(a, 3)); setSelectedDay(null); }} aria-label="Next">
+          <Button variant="outline" size="icon" onClick={() => { setAnchor((a) => addMonths(a, 6)); setSelectedDay(null); }} aria-label="Next">
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
-        {/* Three-month grid */}
+      <div className="grid gap-4 xl:grid-cols-[1fr_280px]">
+        {/* Six-month grid */}
         <Card>
           <CardContent className="pt-4">
-            {isLoading ? (
+            {loadingEvents ? (
               <div className="flex items-center justify-center py-16">
                 <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
               </div>
             ) : (
               <div className="grid gap-6 sm:grid-cols-3">
                 {months.map(({ year, month }) => (
-                  <MiniMonth
+                  <BigMonth
                     key={`${year}-${month}`}
                     year={year}
                     month={month}
-                    countMap={countMap}
+                    peopleMap={peopleMap}
+                    importantDates={importantDatesSet}
                     birthdayDates={birthdayMMDD}
                     selectedDay={selectedDay}
                     todayStr={todayStr}
@@ -346,22 +445,21 @@ export default function TeamCalendarPage() {
               </div>
             )}
             {/* Legend */}
-            {!isLoading && (
+            {!loadingEvents && (
               <div className="mt-4 flex flex-wrap items-center gap-3 border-t pt-3">
-                <span className="text-xs text-slate-400">Absences:</span>
-                {[
-                  { label: "0", cls: "bg-white border border-slate-200" },
-                  { label: "1", cls: "bg-sky-200" },
-                  { label: "2", cls: "bg-blue-400" },
-                  { label: "3", cls: "bg-indigo-500" },
-                  { label: "4+", cls: "bg-violet-700" },
-                ].map(({ label, cls }) => (
-                  <div key={label} className="flex items-center gap-1">
-                    <div className={`h-3 w-3 rounded ${cls}`} />
-                    <span className="text-xs text-slate-500">{label}</span>
-                  </div>
-                ))}
-                <div className="flex items-center gap-1 ml-2">
+                <div className="flex items-center gap-1">
+                  <span className="inline-flex h-4 w-4 items-center justify-center rounded bg-blue-500 text-[8px] font-bold text-white">AB</span>
+                  <span className="text-xs text-slate-500">Approved leave</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="inline-flex h-4 w-4 items-center justify-center rounded bg-slate-400 text-[8px] font-bold text-white">AB</span>
+                  <span className="text-xs text-slate-500">Pending request</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="inline-flex h-4 w-4 items-center justify-center rounded ring-2 ring-yellow-400 bg-yellow-50 text-[8px] font-bold text-yellow-700">★</span>
+                  <span className="text-xs text-slate-500">Important date</span>
+                </div>
+                <div className="flex items-center gap-1">
                   <span className="h-2 w-2 rounded-full bg-green-500 inline-block" />
                   <span className="text-xs text-slate-500">Birthday</span>
                 </div>
@@ -380,10 +478,25 @@ export default function TeamCalendarPage() {
           <CardContent>
             {!selectedDay ? (
               <p className="text-sm text-slate-400">Click any date to see who is out.</p>
-            ) : (selectedEvents.length === 0 && selectedBirthdays.length === 0) ? (
-              <p className="text-sm text-slate-400">No one is out on this day.</p>
+            ) : (selectedEvents.length === 0 && selectedBirthdays.length === 0 && !selectedImportantDate) ? (
+              <p className="text-sm text-slate-400">Nothing scheduled on this day.</p>
             ) : (
               <div className="divide-y">
+                {/* Important date banner */}
+                {selectedImportantDate && (
+                  <div className="py-2.5 first:pt-0">
+                    <div className="flex items-center gap-2 rounded-lg border border-yellow-300 bg-yellow-50 px-2.5 py-2">
+                      <Star className="h-3.5 w-3.5 text-yellow-500 shrink-0 fill-yellow-400" />
+                      <div>
+                        <p className="text-sm font-semibold text-yellow-900">{selectedImportantDate.name}</p>
+                        {selectedImportantDate.description && (
+                          <p className="text-xs text-yellow-700">{selectedImportantDate.description}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {/* Birthdays */}
                 {selectedBirthdays.map((member) => {
                   const birthYear = parseInt(member.birthday.slice(0, 4), 10);
                   const selectedYear = selectedDay ? parseInt(selectedDay.slice(0, 4), 10) : today.getFullYear();
@@ -400,19 +513,28 @@ export default function TeamCalendarPage() {
                     </div>
                   );
                 })}
+                {/* Leave events */}
                 {selectedEvents.map((evt, i) => {
                   const days = parseFloat(evt.totalBusinessDays);
                   return (
                     <div key={`${evt.id}-${i}`} className="py-2.5 first:pt-0 last:pb-0">
                       <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-medium text-slate-800">
-                            {evt.user.firstName} {evt.user.lastName}
-                          </p>
-                          <p className="mt-0.5 text-xs text-slate-500">{evt.leaveType.name}</p>
-                          <p className="mt-0.5 text-xs text-slate-400">
-                            {format(parseLocalDate(evt.startDate), "MMM d")} – {format(parseLocalDate(evt.endDate), "MMM d")} · {days.toFixed(1)}d
-                          </p>
+                        <div className="flex items-start gap-2 min-w-0">
+                          <span className={[
+                            "mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-[10px] font-bold text-white",
+                            evt.status === "pending" ? "bg-slate-400" : personColor(evt.user.id),
+                          ].join(" ")}>
+                            {initials(evt.user.firstName, evt.user.lastName)}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-800">
+                              {evt.user.firstName} {evt.user.lastName}
+                            </p>
+                            <p className="mt-0.5 text-xs text-slate-500">{evt.leaveType.name}</p>
+                            <p className="mt-0.5 text-xs text-slate-400">
+                              {format(parseLocalDate(evt.startDate as string), "MMM d")} – {format(parseLocalDate(evt.endDate as string), "MMM d")} · {days.toFixed(1)}d
+                            </p>
+                          </div>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                           <StatusBadge status={evt.status} />

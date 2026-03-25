@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { Loader2, CheckCircle2, X, Plus } from "lucide-react";
+import { Loader2, CheckCircle2, X, Plus, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,12 +60,21 @@ const WEEKDAYS: { iso: number; label: string; short: string }[] = [
 
 type Holiday = { date: string; name: string };
 
+type ImportantDate = {
+  id: string;
+  name: string;
+  date: string;
+  description?: string;
+  visibility: "all" | "admin_only";
+};
+
 type OrgSettings = {
   orgName: string;
   timezone: string;
   fiscalYearStartMonth: number;
   workSchedule: number[];
   holidayCalendar: Holiday[];
+  importantDates: ImportantDate[];
 };
 
 // ---------------------------------------------------------------------------
@@ -342,6 +351,176 @@ function HolidayCalendarCard({
 }
 
 // ---------------------------------------------------------------------------
+// Important Dates card
+// ---------------------------------------------------------------------------
+
+function ImportantDatesCard({
+  settings,
+  onSave,
+  isSaving,
+}: {
+  settings: OrgSettings;
+  onSave: (patch: Partial<OrgSettings>) => void;
+  isSaving: boolean;
+}) {
+  const [dates, setDates] = useState<ImportantDate[]>(settings.importantDates);
+  const [newName, setNewName] = useState("");
+  const [newDate, setNewDate] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [newVis, setNewVis] = useState<"all" | "admin_only">("all");
+
+  useEffect(() => {
+    setDates(settings.importantDates);
+  }, [settings.importantDates]);
+
+  function addDate() {
+    if (!newDate || !newName.trim()) return;
+    const entry: ImportantDate = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      name: newName.trim(),
+      date: newDate,
+      description: newDesc.trim() || undefined,
+      visibility: newVis,
+    };
+    setDates((prev) => [...prev, entry].sort((a, b) => a.date.localeCompare(b.date)));
+    setNewName("");
+    setNewDate("");
+    setNewDesc("");
+    setNewVis("all");
+  }
+
+  function removeDate(id: string) {
+    setDates((prev) => prev.filter((d) => d.id !== id));
+  }
+
+  function toggleVisibility(id: string) {
+    setDates((prev) =>
+      prev.map((d) =>
+        d.id === id
+          ? { ...d, visibility: d.visibility === "all" ? "admin_only" : "all" }
+          : d
+      )
+    );
+  }
+
+  const dirty = JSON.stringify(dates) !== JSON.stringify(settings.importantDates);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Important Dates</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-slate-500">
+          Dates that appear with a yellow highlight in the team calendar.
+          Control who can see each one with the visibility toggle.
+        </p>
+
+        {dates.length > 0 && (
+          <div className="space-y-2">
+            {dates.map((d) => (
+              <div
+                key={d.id}
+                className="flex items-start gap-2 rounded-lg border border-yellow-200 bg-yellow-50 p-2.5"
+              >
+                <Star className="mt-0.5 h-3.5 w-3.5 shrink-0 text-yellow-500" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-800 truncate">{d.name}</p>
+                  <p className="text-xs text-slate-500">
+                    {format(new Date(d.date + "T00:00:00"), "MMMM d, yyyy")}
+                    {d.description && ` · ${d.description}`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => toggleVisibility(d.id)}
+                  title={d.visibility === "all" ? "Visible to everyone — click to restrict to admins" : "Visible to admins only — click to make visible to all"}
+                  className={[
+                    "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors",
+                    d.visibility === "all"
+                      ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                      : "bg-slate-100 text-slate-500 hover:bg-slate-200",
+                  ].join(" ")}
+                >
+                  {d.visibility === "all" ? "All" : "Admins"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeDate(d.id)}
+                  className="shrink-0 text-slate-400 hover:text-slate-700"
+                  aria-label={`Remove ${d.name}`}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Add row */}
+        <div className="space-y-2 rounded-lg border border-dashed border-slate-200 p-3">
+          <p className="text-xs font-medium text-slate-500">Add important date</p>
+          <div className="flex gap-2">
+            <Input
+              placeholder="Event name (e.g. Property Takeover)"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addDate()}
+            />
+            <Input
+              type="date"
+              value={newDate}
+              onChange={(e) => setNewDate(e.target.value)}
+              className="w-auto"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Input
+              placeholder="Description (optional)"
+              value={newDesc}
+              onChange={(e) => setNewDesc(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addDate()}
+            />
+            <Select value={newVis} onValueChange={(v) => setNewVis((v ?? "all") as "all" | "admin_only")}>
+              <SelectTrigger className="w-36 shrink-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Everyone</SelectItem>
+                <SelectItem value="admin_only">Admins only</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={addDate}
+              disabled={!newDate || !newName.trim()}
+              aria-label="Add important date"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+      <CardFooter className="justify-end border-t pt-4">
+        <Button
+          onClick={() => onSave({ importantDates: dates })}
+          disabled={isSaving || !dirty}
+        >
+          {isSaving ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <CheckCircle2 className="mr-2 h-4 w-4" />
+          )}
+          Save
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -388,12 +567,24 @@ export default function SettingsPage() {
         typeof h === "string" ? { date: h, name: "" } : h as Holiday
       );
     })(),
+    importantDates: (() => {
+      const raw = (rawSettings as { importantDates?: unknown }).importantDates;
+      const arr = Array.isArray((raw as { dates?: unknown })?.dates)
+        ? (raw as { dates: unknown[] }).dates
+        : [];
+      return arr as ImportantDate[];
+    })(),
   };
 
   function handleSave(patch: Partial<OrgSettings>) {
     const merged = { ...settings, ...patch };
-    const { workSchedule, holidayCalendar, ...rest } = merged;
-    update.mutate({ ...rest, workSchedule: { workDays: workSchedule }, holidayCalendar: { holidays: holidayCalendar } });
+    const { workSchedule, holidayCalendar, importantDates, ...rest } = merged;
+    update.mutate({
+      ...rest,
+      workSchedule: { workDays: workSchedule },
+      holidayCalendar: { holidays: holidayCalendar },
+      importantDates: { dates: importantDates },
+    });
   }
 
   return (
@@ -414,6 +605,10 @@ export default function SettingsPage() {
       <Separator />
 
       <HolidayCalendarCard settings={settings} onSave={handleSave} isSaving={update.isPending} />
+
+      <Separator />
+
+      <ImportantDatesCard settings={settings} onSave={handleSave} isSaving={update.isPending} />
     </div>
   );
 }
