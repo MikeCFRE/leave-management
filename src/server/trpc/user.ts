@@ -288,6 +288,16 @@ export const userRouter = router({
       });
   }),
 
+  getPublicHolidays: protectedProcedure.query(async ({ ctx }) => {
+    const org = await db.query.organizations.findFirst({
+      where: eq(organizations.id, ctx.user.organizationId),
+      columns: { holidayCalendar: true },
+    });
+    type Holiday = { date: string; name: string };
+    const raw = (org?.holidayCalendar as { holidays?: Holiday[] } | null)?.holidays ?? [];
+    return raw as Holiday[];
+  }),
+
   getImportantDates: protectedProcedure.query(async ({ ctx }) => {
     const org = await db.query.organizations.findFirst({
       where: eq(organizations.id, ctx.user.organizationId),

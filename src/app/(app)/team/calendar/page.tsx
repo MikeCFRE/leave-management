@@ -118,6 +118,7 @@ function BigMonth({
   month,
   peopleMap,
   importantDates,
+  holidayDates,
   birthdayDates,
   selectedDay,
   todayStr,
@@ -127,6 +128,7 @@ function BigMonth({
   month: number;
   peopleMap: Map<string, CalEvent[]>;
   importantDates: Set<string>;
+  holidayDates: Map<string, string>; // date → holiday name
   birthdayDates: Set<string>;
   selectedDay: string | null;
   todayStr: string;
@@ -158,6 +160,8 @@ function BigMonth({
           const mmdd = dateStr.slice(5);
           const hasBirthday = birthdayDates.has(mmdd);
           const isImportant = importantDates.has(dateStr);
+          const holidayName = holidayDates.get(dateStr);
+          const isHoliday = !!holidayName;
           const isToday = dateStr === todayStr;
           const isSelected = dateStr === selectedDay;
           const allChips = [
@@ -173,28 +177,41 @@ function BigMonth({
               onClick={() => onSelect(dateStr === selectedDay ? "" : dateStr)}
               className={[
                 "relative flex flex-col rounded p-0.5 h-14 text-left transition-colors",
-                "hover:bg-slate-50",
+                isHoliday ? "bg-green-800 hover:bg-green-700" : "hover:bg-slate-50",
                 isSelected ? "ring-2 ring-blue-500 ring-inset" : "",
-                isImportant ? "ring-2 ring-yellow-400 ring-inset bg-yellow-50" : "",
-                isSelected && isImportant ? "ring-2 ring-blue-500 ring-inset bg-yellow-50" : "",
+                !isHoliday && isImportant ? "ring-2 ring-yellow-400 ring-inset bg-yellow-50" : "",
+                !isHoliday && isSelected && isImportant ? "ring-2 ring-blue-500 ring-inset bg-yellow-50" : "",
               ].filter(Boolean).join(" ")}
             >
               {/* Day number */}
               <span className={[
                 "text-[11px] leading-tight self-end pr-0.5",
-                isToday ? "font-bold text-blue-600" : "font-normal text-slate-600",
+                isHoliday
+                  ? (isToday ? "font-bold text-blue-300" : "font-normal text-green-100")
+                  : (isToday ? "font-bold text-blue-600" : "font-normal text-slate-600"),
               ].join(" ")}>
                 {day}
               </span>
               {/* Birthday dot */}
-              {hasBirthday && (
+              {hasBirthday && !isHoliday && (
                 <span className="absolute top-0.5 left-0.5 h-1.5 w-1.5 rounded-full bg-green-500" />
               )}
               {/* Important date star */}
-              {isImportant && (
+              {isImportant && !isHoliday && (
                 <span className="absolute top-0.5 left-0.5 text-yellow-500">
                   <Star className="h-2.5 w-2.5 fill-yellow-400 stroke-yellow-500" />
                 </span>
+              )}
+              {/* Holiday chip */}
+              {isHoliday && (
+                <div className="flex flex-wrap gap-px mt-0.5">
+                  <span
+                    title={holidayName}
+                    className="inline-flex items-center justify-center h-4 w-4 rounded bg-green-600 shrink-0"
+                  >
+                    <Star className="h-2.5 w-2.5 fill-slate-300 stroke-slate-300" />
+                  </span>
+                </div>
               )}
               {/* Initials chips */}
               {allChips.length > 0 && (
@@ -341,6 +358,7 @@ export default function TeamCalendarPage() {
 
   const { data: birthdayMembers = [] } = trpc.user.getTeamBirthdays.useQuery();
   const { data: importantDatesList = [] } = trpc.user.getImportantDates.useQuery();
+  const { data: publicHolidays = [] } = trpc.user.getPublicHolidays.useQuery();
 
   // Map date → events
   const peopleMap = useMemo(() => {
@@ -364,6 +382,13 @@ export default function TeamCalendarPage() {
     importantDatesList.forEach((d) => s.add(d.date));
     return s;
   }, [importantDatesList]);
+
+  // Map date → holiday name
+  const holidayMap = useMemo(() => {
+    const m = new Map<string, string>();
+    publicHolidays.forEach((h) => m.set(h.date, h.name));
+    return m;
+  }, [publicHolidays]);
 
   // Birthday MM-DD set
   const birthdayMMDD = useMemo(() => {
@@ -389,6 +414,7 @@ export default function TeamCalendarPage() {
   const selectedImportantDate = selectedDay
     ? importantDatesList.find((d) => d.date === selectedDay)
     : undefined;
+  const selectedHolidayName = selectedDay ? holidayMap.get(selectedDay) : undefined;
   const todayStr = toYMD(today);
 
   const cancelTarget = selectedEvents.find((e) => e.id === cancelTargetId);
@@ -565,6 +591,7 @@ export default function TeamCalendarPage() {
                     month={month}
                     peopleMap={peopleMap}
                     importantDates={importantDatesSet}
+                    holidayDates={holidayMap}
                     birthdayDates={birthdayMMDD}
                     selectedDay={selectedDay}
                     todayStr={todayStr}
@@ -587,6 +614,12 @@ export default function TeamCalendarPage() {
                 <div className="flex items-center gap-1">
                   <span className="inline-flex h-4 w-4 items-center justify-center rounded ring-2 ring-yellow-400 bg-yellow-50 text-[8px] font-bold text-yellow-700">★</span>
                   <span className="text-xs text-slate-500">Important date</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="inline-flex h-4 w-4 items-center justify-center rounded bg-green-800">
+                    <Star className="h-2.5 w-2.5 fill-slate-300 stroke-slate-300" />
+                  </span>
+                  <span className="text-xs text-slate-500">Public holiday</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="h-2 w-2 rounded-full bg-green-500 inline-block" />
@@ -620,10 +653,19 @@ export default function TeamCalendarPage() {
           <CardContent>
             {!selectedDay ? (
               <p className="text-sm text-slate-400">Click any date to see who is out.</p>
-            ) : (selectedEvents.length === 0 && selectedBirthdays.length === 0 && !selectedImportantDate) ? (
+            ) : (selectedEvents.length === 0 && selectedBirthdays.length === 0 && !selectedImportantDate && !selectedHolidayName) ? (
               <p className="text-sm text-slate-400">Nothing scheduled on this day.</p>
             ) : (
               <div className="divide-y">
+                {/* Public holiday banner */}
+                {selectedHolidayName && (
+                  <div className="py-2.5 first:pt-0">
+                    <div className="flex items-center gap-2 rounded-lg border border-green-800 bg-green-800 px-2.5 py-2">
+                      <Star className="h-3.5 w-3.5 shrink-0 fill-slate-300 stroke-slate-300" />
+                      <p className="text-sm font-semibold text-white">{selectedHolidayName}</p>
+                    </div>
+                  </div>
+                )}
                 {/* Important date banner */}
                 {selectedImportantDate && (
                   <div className="py-2.5 first:pt-0">
