@@ -394,7 +394,6 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
         </div>
         <Button
           variant="outline"
-          size="sm"
           onClick={() => sendLoginLink.mutate({ userId: id })}
           disabled={sendLoginLink.isPending}
           aria-label="Send Login Link"
