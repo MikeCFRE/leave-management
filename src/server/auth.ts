@@ -102,7 +102,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id!;
         token.role = user.role;
         token.mustChangePassword = user.mustChangePassword;
-        token.organizationId = (user as { organizationId: string }).organizationId;
+        token.organizationId = (user as unknown as { organizationId: string }).organizationId;
       }
       return token;
     },

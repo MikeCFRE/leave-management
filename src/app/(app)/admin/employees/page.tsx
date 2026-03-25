@@ -5,7 +5,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import {
   Search, PlusCircle, ChevronLeft, ChevronRight,
-  Loader2, Copy, Check, UserX,
+  Loader2, Copy, Check, UserX, Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -53,11 +53,13 @@ const STATUS_LABELS: Record<string, string> = {
 type CreateForm = {
   firstName: string; lastName: string; email: string;
   role: string; departmentId: string; hireDate: string;
+  birthday: string; initialAnnualLeaveDays: string;
 };
 
 const EMPTY_FORM: CreateForm = {
   firstName: "", lastName: "", email: "",
   role: "employee", departmentId: "", hireDate: "",
+  birthday: "", initialAnnualLeaveDays: "",
 };
 
 function CreateEmployeeDialog({
@@ -89,14 +91,18 @@ function CreateEmployeeDialog({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.firstName || !form.lastName || !form.email || !form.hireDate) return;
+    if (!form.firstName || !form.lastName || !form.email) return;
     create.mutate({
       firstName: form.firstName.trim(),
       lastName: form.lastName.trim(),
       email: form.email.trim(),
       role: form.role as "employee" | "manager" | "admin" | "super_admin",
       departmentId: form.departmentId || undefined,
-      hireDate: form.hireDate,
+      hireDate: form.hireDate || undefined,
+      birthday: form.birthday || undefined,
+      initialAnnualLeaveDays: form.initialAnnualLeaveDays
+        ? parseFloat(form.initialAnnualLeaveDays)
+        : undefined,
     });
   }
 
@@ -159,7 +165,11 @@ function CreateEmployeeDialog({
                     onValueChange={(v) => setForm((p) => ({ ...p, departmentId: v ?? "" }))}
                   >
                     <SelectTrigger id="ce-dept" className="w-full">
-                      <SelectValue placeholder="None" />
+                      <SelectValue placeholder="None">
+                        {form.departmentId
+                          ? (departments.find((d) => d.id === form.departmentId)?.name ?? "None")
+                          : "None"}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="">None</SelectItem>
@@ -170,9 +180,34 @@ function CreateEmployeeDialog({
                   </Select>
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="ce-hire">
+                    Hire Date <span className="text-slate-400 font-normal">(optional)</span>
+                  </Label>
+                  <Input id="ce-hire" type="date" value={form.hireDate} onChange={f("hireDate")} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="ce-bday">
+                    Birthday <span className="text-slate-400 font-normal">(optional)</span>
+                  </Label>
+                  <Input id="ce-bday" type="date" value={form.birthday} onChange={f("birthday")} />
+                </div>
+              </div>
               <div className="space-y-1.5">
-                <Label htmlFor="ce-hire">Hire Date</Label>
-                <Input id="ce-hire" type="date" value={form.hireDate} onChange={f("hireDate")} required />
+                <Label htmlFor="ce-pto">
+                  Initial Annual Leave Days{" "}
+                  <span className="text-slate-400 font-normal">(optional — defaults to policy)</span>
+                </Label>
+                <Input
+                  id="ce-pto"
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  placeholder="e.g. 10"
+                  value={form.initialAnnualLeaveDays}
+                  onChange={f("initialAnnualLeaveDays")}
+                />
               </div>
             </div>
 
@@ -182,7 +217,7 @@ function CreateEmployeeDialog({
               </DialogClose>
               <Button
                 type="submit"
-                disabled={create.isPending || !form.firstName || !form.lastName || !form.email || !form.hireDate}
+                disabled={create.isPending || !form.firstName || !form.lastName || !form.email}
               >
                 {create.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Create Employee
@@ -218,6 +253,173 @@ function CreateEmployeeDialog({
 }
 
 // ---------------------------------------------------------------------------
+// Bulk import dialog
+// ---------------------------------------------------------------------------
+
+function BulkImportDialog({
+  open, onClose, departments,
+}: {
+  open: boolean;
+  onClose: () => void;
+  departments: { id: string; name: string }[];
+}) {
+  const [csvText, setCsvText] = useState("");
+  const [defaultDeptId, setDefaultDeptId] = useState("");
+  const [defaultRole, setDefaultRole] = useState("employee");
+  const [results, setResults] = useState<
+    { email: string; success: boolean; tempPassword?: string; error?: string }[] | null
+  >(null);
+
+  const utils = trpc.useUtils();
+  const bulk = trpc.admin.bulkCreateUsers.useMutation({
+    onSuccess: (data) => {
+      setResults(data.results);
+      utils.admin.listUsers.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  function handleClose() {
+    setCsvText("");
+    setDefaultDeptId("");
+    setDefaultRole("employee");
+    setResults(null);
+    onClose();
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const lines = csvText.trim().split("\n").filter(Boolean);
+    const parsed: { firstName: string; lastName: string; email: string; role: "employee" | "manager" | "admin" | "super_admin"; departmentId?: string }[] = [];
+    for (const line of lines) {
+      const parts = line.split(",").map((s) => s.trim());
+      if (parts.length < 3) continue;
+      const [firstName, lastName, email] = parts;
+      if (!firstName || !lastName || !email) continue;
+      parsed.push({
+        firstName,
+        lastName,
+        email,
+        role: defaultRole as "employee" | "manager" | "admin" | "super_admin",
+        departmentId: defaultDeptId || undefined,
+      });
+    }
+    if (!parsed.length) {
+      toast.error("No valid rows. Format: First Name, Last Name, Email");
+      return;
+    }
+    bulk.mutate({ users: parsed });
+  }
+
+  const rowCount = csvText.trim().split("\n").filter(Boolean).length;
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
+      <DialogContent className="sm:max-w-lg">
+        {!results ? (
+          <form onSubmit={handleSubmit}>
+            <DialogHeader>
+              <DialogTitle>Bulk Import Employees</DialogTitle>
+              <DialogDescription>
+                One employee per line:{" "}
+                <code className="text-xs bg-slate-100 px-1 rounded">First Name, Last Name, Email</code>
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="mt-4 space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="bi-csv">Employee List</Label>
+                <textarea
+                  id="bi-csv"
+                  className="w-full min-h-[140px] rounded-md border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-y"
+                  placeholder={"John, Smith, john@company.com\nJane, Doe, jane@company.com"}
+                  value={csvText}
+                  onChange={(e) => setCsvText(e.target.value)}
+                />
+                <p className="text-xs text-slate-400">{rowCount} row{rowCount !== 1 ? "s" : ""} entered</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="bi-role">Default Role</Label>
+                  <Select value={defaultRole} onValueChange={(v) => setDefaultRole(v ?? "employee")}>
+                    <SelectTrigger id="bi-role" className="w-full">
+                      <SelectValue>{ROLE_LABELS[defaultRole] ?? defaultRole}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(ROLE_LABELS).map(([v, l]) => (
+                        <SelectItem key={v} value={v}>{l}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="bi-dept">Default Department</Label>
+                  <Select value={defaultDeptId} onValueChange={(v) => setDefaultDeptId(v ?? "")}>
+                    <SelectTrigger id="bi-dept" className="w-full">
+                      <SelectValue placeholder="None">
+                        {defaultDeptId
+                          ? (departments.find((d) => d.id === defaultDeptId)?.name ?? "None")
+                          : "None"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">None</SelectItem>
+                      {departments.map((d) => (
+                        <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="mt-4">
+              <DialogClose render={<Button variant="outline" />} disabled={bulk.isPending}>
+                Cancel
+              </DialogClose>
+              <Button type="submit" disabled={bulk.isPending || !csvText.trim()}>
+                {bulk.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Import {rowCount > 0 ? `${rowCount} Employee${rowCount !== 1 ? "s" : ""}` : "Employees"}
+              </Button>
+            </DialogFooter>
+          </form>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>Import Complete</DialogTitle>
+              <DialogDescription>
+                {results.filter((r) => r.success).length} of {results.length} employees created successfully.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="mt-4 max-h-64 overflow-y-auto space-y-1.5">
+              {results.map((r) => (
+                <div key={r.email} className="flex items-center gap-2 text-sm">
+                  <span className={r.success ? "text-green-600 shrink-0" : "text-red-500 shrink-0"}>
+                    {r.success ? "✓" : "✗"}
+                  </span>
+                  <span className="flex-1 truncate text-xs">{r.email}</span>
+                  {r.success && r.tempPassword && (
+                    <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded font-mono shrink-0">
+                      {r.tempPassword}
+                    </code>
+                  )}
+                  {!r.success && (
+                    <span className="text-xs text-red-500 truncate max-w-[140px]">{r.error}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+            <DialogFooter className="mt-4">
+              <Button onClick={handleClose}>Done</Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -230,6 +432,7 @@ export default function EmployeesPage() {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const { data, isLoading, error } = trpc.admin.listUsers.useQuery({
     search: search || undefined,
@@ -282,10 +485,16 @@ export default function EmployeesPage() {
             {total > 0 ? `${total} employee${total !== 1 ? "s" : ""}` : "No employees"}
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Add Employee
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setBulkOpen(true)}>
+            <Users className="mr-2 h-4 w-4" />
+            Bulk Import
+          </Button>
+          <Button onClick={() => setCreateOpen(true)}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Add Employee
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -401,6 +610,11 @@ export default function EmployeesPage() {
       <CreateEmployeeDialog
         open={createOpen}
         onClose={() => setCreateOpen(false)}
+        departments={departments}
+      />
+      <BulkImportDialog
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
         departments={departments}
       />
 

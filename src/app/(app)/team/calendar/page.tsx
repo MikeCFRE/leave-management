@@ -3,8 +3,10 @@
 import { useState, useMemo } from "react";
 import { format, addMonths, subMonths, parseISO } from "date-fns";
 import { parseLocalDate } from "@/lib/date-utils";
-import { Cake, ChevronLeft, ChevronRight, Loader2, Trash2 } from "lucide-react";
+import { Cake, ChevronLeft, ChevronRight, Loader2, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
@@ -136,6 +138,9 @@ export default function TeamCalendarPage() {
   const [anchor, setAnchor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [cancelTargetId, setCancelTargetId] = useState<string | null>(null);
+  const [editTarget, setEditTarget] = useState<{ id: string; startDate: string; endDate: string } | null>(null);
+  const [editStart, setEditStart] = useState("");
+  const [editEnd, setEditEnd] = useState("");
 
   const utils = trpc.useUtils();
   const cancelMutation = trpc.admin.cancelLeaveRequest.useMutation({
@@ -149,6 +154,26 @@ export default function TeamCalendarPage() {
       toast.error(err.message ?? "Failed to cancel request.");
     },
   });
+
+  const editMutation = trpc.admin.editLeaveRequest.useMutation({
+    onSuccess: () => {
+      toast.success("Leave request updated and employee notified.");
+      setEditTarget(null);
+      utils.user.getTeamCalendar.invalidate();
+      utils.user.getCoverageHeatmap.invalidate();
+    },
+    onError: (err) => {
+      toast.error(err.message ?? "Failed to update request.");
+    },
+  });
+
+  function openEdit(evt: { id: string; startDate: unknown; endDate: unknown }) {
+    const start = String(evt.startDate).slice(0, 10);
+    const end = String(evt.endDate).slice(0, 10);
+    setEditStart(start);
+    setEditEnd(end);
+    setEditTarget({ id: evt.id, startDate: start, endDate: end });
+  }
 
   // Show 3 consecutive months starting from anchor
   const months = useMemo(() => [0, 1, 2].map((offset) => {
@@ -243,6 +268,38 @@ export default function TeamCalendarPage() {
               disabled={cancelMutation.isPending}
             >
               Cancel Leave
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit dates dialog */}
+      <Dialog open={!!editTarget} onOpenChange={(o: boolean) => { if (!o) setEditTarget(null); }}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Edit leave dates</DialogTitle>
+            <DialogDescription>
+              Update the start and end dates for this leave request. The employee will be notified by email.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-2 space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="cal-edit-start">Start Date</Label>
+              <Input id="cal-edit-start" type="date" value={editStart} onChange={(e) => setEditStart(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cal-edit-end">End Date</Label>
+              <Input id="cal-edit-end" type="date" value={editEnd} onChange={(e) => setEditEnd(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+            <Button
+              onClick={() => editTarget && editMutation.mutate({ requestId: editTarget.id, startDate: editStart, endDate: editEnd })}
+              disabled={editMutation.isPending || !editStart || !editEnd}
+            >
+              {editMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -360,15 +417,26 @@ export default function TeamCalendarPage() {
                         <div className="flex items-center gap-1 shrink-0">
                           <StatusBadge status={evt.status} />
                           {isAdmin && evt.status === "approved" && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50"
-                              onClick={() => setCancelTargetId(evt.id)}
-                              title="Cancel this approved leave"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+                                onClick={() => openEdit(evt)}
+                                title="Edit dates"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => setCancelTargetId(evt.id)}
+                                title="Cancel this approved leave"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </>
                           )}
                         </div>
                       </div>

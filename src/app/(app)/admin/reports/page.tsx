@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { parseLocalDate } from "@/lib/date-utils";
-import { Loader2, BarChart3, Clock, TrendingUp, DollarSign, Activity, List, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { Loader2, BarChart3, Clock, TrendingUp, DollarSign, Activity, List, ChevronLeft, ChevronRight, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -342,6 +342,9 @@ function AllRequestsReport({ departments }: { departments: { id: string; name: s
   const [deptFilter, setDeptFilter] = useState("");
   const [page, setPage] = useState(1);
   const [cancelTargetId, setCancelTargetId] = useState<string | null>(null);
+  const [editTarget, setEditTarget] = useState<{ id: string } | null>(null);
+  const [editStart, setEditStart] = useState("");
+  const [editEnd, setEditEnd] = useState("");
 
   const utils = trpc.useUtils();
   const { data, isLoading } = trpc.admin.listAllLeaveRequests.useQuery({
@@ -362,12 +365,29 @@ function AllRequestsReport({ departments }: { departments: { id: string; name: s
     },
   });
 
+  const editMutation = trpc.admin.editLeaveRequest.useMutation({
+    onSuccess: () => {
+      toast.success("Leave request updated and employee notified.");
+      setEditTarget(null);
+      utils.admin.listAllLeaveRequests.invalidate();
+    },
+    onError: (err) => {
+      toast.error(err.message ?? "Failed to update request.");
+    },
+  });
+
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
   const pages = data?.pages ?? 1;
 
   function handleFilter(setter: (v: string) => void) {
     return (v: string | null) => { setter(v === "_all" ? "" : (v ?? "")); setPage(1); };
+  }
+
+  function openEdit(r: { id: string; startDate: unknown; endDate: unknown }) {
+    setEditStart(String(r.startDate).slice(0, 10));
+    setEditEnd(String(r.endDate).slice(0, 10));
+    setEditTarget({ id: r.id });
   }
 
   const cancelTarget = items.find((r) => r.id === cancelTargetId);
@@ -398,6 +418,38 @@ function AllRequestsReport({ departments }: { departments: { id: string; name: s
               disabled={cancelMutation.isPending}
             >
               Cancel Leave
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit dates dialog */}
+      <Dialog open={!!editTarget} onOpenChange={(o: boolean) => { if (!o) setEditTarget(null); }}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Edit leave dates</DialogTitle>
+            <DialogDescription>
+              Update the start and end dates for this leave request. The employee will be notified by email.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-2 space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="rep-edit-start">Start Date</Label>
+              <Input id="rep-edit-start" type="date" value={editStart} onChange={(e) => setEditStart(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="rep-edit-end">End Date</Label>
+              <Input id="rep-edit-end" type="date" value={editEnd} onChange={(e) => setEditEnd(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+            <Button
+              onClick={() => editTarget && editMutation.mutate({ requestId: editTarget.id, startDate: editStart, endDate: editEnd })}
+              disabled={editMutation.isPending || !editStart || !editEnd}
+            >
+              {editMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -482,15 +534,26 @@ function AllRequestsReport({ departments }: { departments: { id: string; name: s
                       </td>
                       <td className="py-2">
                         {r.status === "approved" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => setCancelTargetId(r.id)}
-                            title="Cancel this approved leave"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          <div className="flex items-center gap-0.5">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+                              onClick={() => openEdit(r)}
+                              title="Edit dates"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => setCancelTargetId(r.id)}
+                              title="Cancel this approved leave"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         )}
                       </td>
                     </tr>
