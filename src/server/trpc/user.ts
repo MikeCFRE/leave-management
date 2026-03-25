@@ -279,12 +279,7 @@ export const userRouter = router({
    */
   getTeamBirthdays: protectedProcedure.query(async ({ ctx }) => {
     const members = await db.query.users.findMany({
-      where: and(
-        eq(users.organizationId, ctx.user.organizationId),
-        ctx.user.departmentId
-          ? eq(users.departmentId, ctx.user.departmentId)
-          : undefined
-      ),
+      where: eq(users.organizationId, ctx.user.organizationId),
       columns: {
         id: true,
         firstName: true,
