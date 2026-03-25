@@ -177,7 +177,7 @@ function BigMonth({
               onClick={() => onSelect(dateStr === selectedDay ? "" : dateStr)}
               className={[
                 "relative flex flex-col rounded p-0.5 h-14 text-left transition-colors",
-                isHoliday ? "bg-green-800 hover:bg-green-700" : "hover:bg-slate-50",
+                isHoliday ? "bg-slate-100 hover:bg-slate-200" : "hover:bg-slate-50",
                 isSelected ? "ring-2 ring-blue-500 ring-inset" : "",
                 !isHoliday && isImportant ? "ring-2 ring-yellow-400 ring-inset bg-yellow-50" : "",
                 !isHoliday && isSelected && isImportant ? "ring-2 ring-blue-500 ring-inset bg-yellow-50" : "",
@@ -186,9 +186,7 @@ function BigMonth({
               {/* Day number */}
               <span className={[
                 "text-[11px] leading-tight self-end pr-0.5",
-                isHoliday
-                  ? (isToday ? "font-bold text-blue-300" : "font-normal text-green-100")
-                  : (isToday ? "font-bold text-blue-600" : "font-normal text-slate-600"),
+                isToday ? "font-bold text-blue-600" : "font-normal text-slate-600",
               ].join(" ")}>
                 {day}
               </span>
