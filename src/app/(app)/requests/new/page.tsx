@@ -130,7 +130,7 @@ export default function NewRequestPage() {
                   value={leaveTypeId}
                   onValueChange={(v) => setLeaveTypeId(v as string)}
                 >
-                  <SelectTrigger id="leave-type" className="w-full">
+                  <SelectTrigger id="leave-type" className="h-11 w-full">
                     <SelectValue placeholder="Select leave type">
                       {leaveTypeId
                         ? (balances?.find((b) => b.leaveTypeId === leaveTypeId)?.leaveType.name ?? "")
@@ -172,7 +172,7 @@ export default function NewRequestPage() {
                   render={
                     <Button
                       variant="outline"
-                      className="w-full justify-start text-left font-normal"
+                      className="h-11 w-full justify-start text-left font-normal"
                     >
                       <CalendarIcon className="mr-2 h-4 w-4 shrink-0 text-slate-400" />
                       {range?.from ? (
@@ -291,7 +291,7 @@ export default function NewRequestPage() {
             <Button variant="outline" nativeButton={false} render={<Link href="/dashboard" />}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!canSubmit}>
+            <Button type="submit" className="h-11" disabled={!canSubmit}>
               {submit.isPending && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
