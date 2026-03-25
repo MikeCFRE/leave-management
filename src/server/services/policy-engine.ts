@@ -94,20 +94,20 @@ const DEFAULT_CONSECUTIVE_CAP: ConsecutiveCapParams = {
 // Policy resolution — cascading specificity
 // Precedence: user-specific > department-specific > org-wide
 // Within each tier, highest `priority` value wins.
+//
+// resolvePolicy is now synchronous and filters pre-loaded rules in memory.
+// Callers load all rules once via loadPolicyRules() and pass them in.
 // ---------------------------------------------------------------------------
 
-async function resolvePolicy<T>(
-  orgId: string,
-  deptId: string | null,
-  userId: string,
-  ruleType: string
-): Promise<T | null> {
-  const today = formatDate(new Date());
+type PolicyRule = typeof policyRules.$inferSelect;
 
-  const rules = await db.query.policyRules.findMany({
+export async function loadPolicyRules(
+  orgId: string
+): Promise<PolicyRule[]> {
+  const today = formatDate(new Date());
+  return db.query.policyRules.findMany({
     where: and(
       eq(policyRules.organizationId, orgId),
-      eq(policyRules.ruleType, ruleType as "advance_notice" | "consecutive_cap" | "coverage_min" | "blackout" | "balance_override"),
       eq(policyRules.isActive, true),
       lte(policyRules.effectiveFrom, today),
       or(
@@ -116,7 +116,15 @@ async function resolvePolicy<T>(
       )
     ),
   });
+}
 
+function resolvePolicy<T>(
+  deptId: string | null,
+  userId: string,
+  ruleType: string,
+  allRules: PolicyRule[]
+): T | null {
+  const rules = allRules.filter((r) => r.ruleType === ruleType);
   if (!rules.length) return null;
 
   const userRules = rules.filter((r) => r.userId === userId);
@@ -184,14 +192,15 @@ async function validateBalance(
 // Validator 2: Advance Notice
 // ---------------------------------------------------------------------------
 
-async function validateAdvanceNotice(
-  input: ValidateRequestInput
-): Promise<ValidationError | null> {
-  const params = await resolvePolicy<AdvanceNoticeParams>(
-    input.organizationId,
+function validateAdvanceNotice(
+  input: ValidateRequestInput,
+  allRules: PolicyRule[]
+): ValidationError | null {
+  const params = resolvePolicy<AdvanceNoticeParams>(
     input.departmentId,
     input.userId,
-    "advance_notice"
+    "advance_notice",
+    allRules
   );
 
   const tiers = params?.tiers ?? DEFAULT_ADVANCE_NOTICE_TIERS;
@@ -221,16 +230,17 @@ async function validateAdvanceNotice(
 // Validator 3: Consecutive Days
 // ---------------------------------------------------------------------------
 
-async function validateConsecutiveDays(
-  input: ValidateRequestInput
-): Promise<ValidationError | null> {
+function validateConsecutiveDays(
+  input: ValidateRequestInput,
+  allRules: PolicyRule[]
+): ValidationError | null {
   const params =
-    (await resolvePolicy<ConsecutiveCapParams>(
-      input.organizationId,
+    resolvePolicy<ConsecutiveCapParams>(
       input.departmentId,
       input.userId,
-      "consecutive_cap"
-    )) ?? DEFAULT_CONSECUTIVE_CAP;
+      "consecutive_cap",
+      allRules
+    ) ?? DEFAULT_CONSECUTIVE_CAP;
 
   if (input.totalCalendarDays > params.max_consecutive_days) {
     return {
@@ -247,15 +257,16 @@ async function validateConsecutiveDays(
 // ---------------------------------------------------------------------------
 
 async function validateGap(
-  input: ValidateRequestInput
+  input: ValidateRequestInput,
+  allRules: PolicyRule[]
 ): Promise<ValidationError | null> {
   const params =
-    (await resolvePolicy<ConsecutiveCapParams>(
-      input.organizationId,
+    resolvePolicy<ConsecutiveCapParams>(
       input.departmentId,
       input.userId,
-      "consecutive_cap"
-    )) ?? DEFAULT_CONSECUTIVE_CAP;
+      "consecutive_cap",
+      allRules
+    ) ?? DEFAULT_CONSECUTIVE_CAP;
 
   // Only applies when this request qualifies as a "long block"
   if (input.totalCalendarDays < params.long_block_threshold_days) return null;
@@ -475,20 +486,23 @@ export async function runAllValidators(
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
 
-  // Validators 1–4 and 7 are independent — run in parallel
+  // Load all active policy rules once — validators filter in memory (no extra DB calls).
+  const allRules = await loadPolicyRules(input.organizationId);
+
+  // Validators 1, 4, and 7 hit the DB; 2 and 3 are now pure in-memory.
+  // Run the async ones in parallel alongside the synchronous ones.
   const [
     balanceError,
-    advanceNoticeError,
-    consecutiveDaysError,
     gapError,
     overlapError,
   ] = await Promise.all([
     validateBalance(input),
-    validateAdvanceNotice(input),
-    validateConsecutiveDays(input),
-    validateGap(input),
+    validateGap(input, allRules),
     validateOverlap(input),
   ]);
+
+  const advanceNoticeError = validateAdvanceNotice(input, allRules);
+  const consecutiveDaysError = validateConsecutiveDays(input, allRules);
 
   if (balanceError) errors.push(balanceError);
   if (advanceNoticeError) errors.push(advanceNoticeError);

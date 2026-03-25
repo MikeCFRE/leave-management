@@ -31,9 +31,7 @@ interface NotificationPreferences {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function resend(): Resend {
-  return new Resend(process.env.RESEND_API_KEY);
-}
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const EMAIL_FROM =
   process.env.EMAIL_FROM ?? "noreply@fivecpm.com";
@@ -52,7 +50,7 @@ async function sendEmail(opts: {
   html: string;
 }): Promise<void> {
   try {
-    await resend().emails.send({
+    await resend.emails.send({
       from: EMAIL_FROM,
       to: opts.to,
       subject: opts.subject,

@@ -23,6 +23,7 @@ declare module "next-auth" {
       id: string;
       role: string;
       mustChangePassword: boolean;
+      organizationId: string;
     } & DefaultSession["user"];
   }
 }
@@ -33,6 +34,7 @@ declare module "@auth/core/jwt" {
     id: string;
     role: string;
     mustChangePassword: boolean;
+    organizationId: string;
   }
 }
 
@@ -88,6 +90,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: `${user.firstName} ${user.lastName}`,
           role: user.role,
           mustChangePassword: user.mustChangePassword,
+          organizationId: user.organizationId,
         };
       },
     }),
@@ -99,6 +102,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id!;
         token.role = user.role;
         token.mustChangePassword = user.mustChangePassword;
+        token.organizationId = (user as { organizationId: string }).organizationId;
       }
       return token;
     },
@@ -107,6 +111,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.id = token.id as string;
       session.user.role = token.role as string;
       session.user.mustChangePassword = token.mustChangePassword as boolean;
+      session.user.organizationId = token.organizationId as string;
       return session;
     },
   },

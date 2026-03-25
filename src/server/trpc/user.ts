@@ -1,32 +1,10 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { and, eq, gte, lte, or } from "drizzle-orm";
-import { publicProcedure, router } from "./trpc";
+import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
+import { protectedProcedure, router } from "./trpc";
 import { db } from "@/server/db";
-import { leaveRequests, notifications, organizations, users } from "@/server/db/schema";
-import { getUserById } from "@/server/services/user-service";
+import { leaveRequests, notifications, users } from "@/server/db/schema";
 import { markNotificationsRead } from "@/server/services/notification-service";
-
-// ---------------------------------------------------------------------------
-// Protected procedure — requires an authenticated session
-// ---------------------------------------------------------------------------
-
-const protectedProcedure = publicProcedure.use(async ({ ctx, next }) => {
-  if (!ctx.session?.user) {
-    throw new TRPCError({ code: "UNAUTHORIZED" });
-  }
-
-  const user = await getUserById(ctx.session.user.id);
-  if (!user || user.deletedAt || user.employmentStatus === "terminated") {
-    throw new TRPCError({ code: "UNAUTHORIZED" });
-  }
-
-  const org = await db.query.organizations.findFirst({
-    where: eq(organizations.id, user.organizationId),
-  });
-
-  return next({ ctx: { ...ctx, user, org: org ?? null } });
-});
 
 // ---------------------------------------------------------------------------
 // Notification channel schema (mirrors NotificationPreferences in service)
@@ -171,7 +149,7 @@ export const userRouter = router({
 
       if (!teamMembers.length) return [];
 
-      const teamIdSet = new Set(teamMembers.map((u) => u.id));
+      const teamIds = teamMembers.map((u) => u.id);
 
       const statusFilters = input.includeStatuses.map((s) =>
         eq(leaveRequests.status, s)
@@ -179,6 +157,7 @@ export const userRouter = router({
 
       const requests = await db.query.leaveRequests.findMany({
         where: and(
+          inArray(leaveRequests.userId, teamIds),
           lte(leaveRequests.startDate, input.endDate),
           gte(leaveRequests.endDate, input.startDate),
           or(...statusFilters)
@@ -196,7 +175,7 @@ export const userRouter = router({
         },
       });
 
-      return requests.filter((r) => teamIdSet.has(r.userId));
+      return requests;
     }),
 
   /**
@@ -231,10 +210,11 @@ export const userRouter = router({
 
       if (!teamMembers.length) return [];
 
-      const teamIdSet = new Set(teamMembers.map((u) => u.id));
+      const teamIds = teamMembers.map((u) => u.id);
 
-      const requests = await db.query.leaveRequests.findMany({
+      const teamRequests = await db.query.leaveRequests.findMany({
         where: and(
+          inArray(leaveRequests.userId, teamIds),
           eq(leaveRequests.status, "approved"),
           lte(leaveRequests.startDate, input.endDate),
           gte(leaveRequests.endDate, input.startDate)
@@ -242,7 +222,6 @@ export const userRouter = router({
         columns: { userId: true, startDate: true, endDate: true },
       });
 
-      const teamRequests = requests.filter((r) => teamIdSet.has(r.userId));
       if (!teamRequests.length) return [];
 
       function* datesBetween(start: string, end: string) {
@@ -279,7 +258,11 @@ export const userRouter = router({
    */
   getTeamBirthdays: protectedProcedure.query(async ({ ctx }) => {
     const members = await db.query.users.findMany({
-      where: eq(users.organizationId, ctx.user.organizationId),
+      where: and(
+        eq(users.organizationId, ctx.user.organizationId),
+        isNull(users.deletedAt),
+        eq(users.employmentStatus, "active")
+      ),
       columns: {
         id: true,
         firstName: true,

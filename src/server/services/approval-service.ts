@@ -65,27 +65,27 @@ async function assertCanApprove(
 
   if (approverRole === "admin" || approverRole === "super_admin") return;
 
-  // For managers: verify the requester is somewhere in their reporting chain
-  let currentUserId: string | null = requestUserId;
-  let depth = 0;
-  const MAX_CHAIN_DEPTH = 5;
+  // Single recursive CTE walks the full manager chain in one round-trip.
+  // Replaces the previous N serial queries (up to MAX_CHAIN_DEPTH = 5).
+  const result = await db.execute(sql`
+    WITH RECURSIVE chain(id, manager_id, depth) AS (
+      SELECT id, manager_id, 0
+      FROM users
+      WHERE id = ${requestUserId}
+        AND organization_id = ${organizationId}
+      UNION ALL
+      SELECT u.id, u.manager_id, c.depth + 1
+      FROM users u
+      JOIN chain c ON u.id = c.manager_id
+      WHERE c.manager_id IS NOT NULL
+        AND c.depth < 5
+    )
+    SELECT 1 AS found FROM chain WHERE manager_id = ${approverId} LIMIT 1
+  `);
 
-  while (currentUserId && depth < MAX_CHAIN_DEPTH) {
-    const u: { managerId: string | null } | undefined =
-      await db.query.users.findFirst({
-        where: and(
-          eq(users.id, currentUserId),
-          eq(users.organizationId, organizationId)
-        ),
-        columns: { managerId: true },
-      });
-    if (!u) break;
-    if (u.managerId === approverId) return; // Found in chain
-    currentUserId = u.managerId;
-    depth++;
+  if (!result.rows.length) {
+    throw new Error("You are not authorised to act on this request.");
   }
-
-  throw new Error("You are not authorised to act on this request.");
 }
 
 /** Update leave balance when a request is approved: used += days, pending -= days */

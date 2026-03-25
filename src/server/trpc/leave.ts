@@ -1,10 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
-import { publicProcedure, router } from "./trpc";
-import { db } from "@/server/db";
-import { organizations } from "@/server/db/schema";
-import { getUserById } from "@/server/services/user-service";
+import { protectedProcedure, router } from "./trpc";
 import {
   cancelLeaveRequest,
   editLeaveRequest,
@@ -13,33 +9,6 @@ import {
   getRequestById,
   submitLeaveRequest,
 } from "@/server/services/leave-service";
-
-// ---------------------------------------------------------------------------
-// Protected procedure — requires an authenticated session
-// ---------------------------------------------------------------------------
-
-const protectedProcedure = publicProcedure.use(async ({ ctx, next }) => {
-  if (!ctx.session?.user) {
-    throw new TRPCError({ code: "UNAUTHORIZED" });
-  }
-
-  const user = await getUserById(ctx.session.user.id);
-  if (!user || user.deletedAt || user.employmentStatus === "terminated") {
-    throw new TRPCError({ code: "UNAUTHORIZED" });
-  }
-
-  const org = await db.query.organizations.findFirst({
-    where: eq(organizations.id, user.organizationId),
-  });
-
-  return next({
-    ctx: {
-      ...ctx,
-      user,
-      org: org ?? null,
-    },
-  });
-});
 
 // ---------------------------------------------------------------------------
 // Leave router
@@ -80,11 +49,11 @@ export const leaveRouter = router({
         });
       }
 
-      const workSchedule = ctx.org?.workSchedule as
+      const workSchedule = ctx.user.organization?.workSchedule as
         | { workDays: number[] }
         | null
         | undefined;
-      const holidayCalendar = ctx.org?.holidayCalendar as
+      const holidayCalendar = ctx.user.organization?.holidayCalendar as
         | { holidays: { date: string; name: string }[] }
         | null
         | undefined;
@@ -159,11 +128,11 @@ export const leaveRouter = router({
         });
       }
 
-      const workSchedule = ctx.org?.workSchedule as
+      const workSchedule = ctx.user.organization?.workSchedule as
         | { workDays: number[] }
         | null
         | undefined;
-      const holidayCalendar = ctx.org?.holidayCalendar as
+      const holidayCalendar = ctx.user.organization?.holidayCalendar as
         | { holidays: { date: string; name: string }[] }
         | null
         | undefined;

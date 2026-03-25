@@ -37,8 +37,15 @@ interface ResetTokenPayload {
 }
 
 function getSecret(): string {
-  const secret = process.env.NEXTAUTH_SECRET;
-  if (!secret) throw new Error("NEXTAUTH_SECRET is not set");
+  // Prefer a dedicated secret so password-reset tokens and session tokens use
+  // independent signing keys. Fall back to NEXTAUTH_SECRET for backwards
+  // compatibility with existing deployments.
+  const secret =
+    process.env.PASSWORD_RESET_SECRET ?? process.env.NEXTAUTH_SECRET;
+  if (!secret)
+    throw new Error(
+      "PASSWORD_RESET_SECRET (or NEXTAUTH_SECRET) is not set"
+    );
   return secret;
 }
 

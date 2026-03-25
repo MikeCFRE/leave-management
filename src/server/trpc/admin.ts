@@ -2,7 +2,7 @@ import { randomBytes } from "crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { and, asc, desc, eq, gte, ilike, inArray, isNull, lte, or, sql } from "drizzle-orm";
-import { publicProcedure, router } from "./trpc";
+import { adminProcedure, router } from "./trpc";
 import { db } from "@/server/db";
 import {
   auditLog,
@@ -17,34 +17,10 @@ import {
 } from "@/server/db/schema";
 import { hashPassword, sendWelcomeEmail } from "@/server/services/user-service";
 import { appendAuditLog, AUDIT_ACTIONS } from "@/server/services/audit-service";
-import { notifyAdminCancelledRequest } from "@/server/services/notification-service";
+import { notifyAdminCancelledRequest, notifyAdminEditedRequest } from "@/server/services/notification-service";
 import { editLeaveRequest } from "@/server/services/leave-service";
-import { getUserById } from "@/server/services/user-service";
 import type { UserRole } from "@/lib/types";
 import { formatDate } from "@/lib/date-utils";
-
-// ---------------------------------------------------------------------------
-// Protected procedures
-// ---------------------------------------------------------------------------
-
-const protectedProcedure = publicProcedure.use(async ({ ctx, next }) => {
-  if (!ctx.session?.user) throw new TRPCError({ code: "UNAUTHORIZED" });
-
-  const user = await getUserById(ctx.session.user.id);
-  if (!user || user.deletedAt || user.employmentStatus === "terminated") {
-    throw new TRPCError({ code: "UNAUTHORIZED" });
-  }
-
-  return next({ ctx: { ...ctx, user } });
-});
-
-/** Requires admin or super_admin role */
-const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.user.role !== "admin" && ctx.user.role !== "super_admin") {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required." });
-  }
-  return next({ ctx });
-});
 
 // ---------------------------------------------------------------------------
 // Utilities
@@ -211,12 +187,15 @@ export const adminRouter = router({
           .default("employee"),
         departmentId: z.string().uuid().optional(),
         managerId: z.string().uuid().optional(),
-        hireDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        hireDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        initialAnnualLeaveDays: z.number().positive().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const tempPassword = generateTempPassword();
       const passwordHash = await hashPassword(tempPassword);
+      const today = new Date().toISOString().slice(0, 10);
 
       const [newUser] = await db
         .insert(users)
@@ -229,7 +208,8 @@ export const adminRouter = router({
           role: input.role,
           departmentId: input.departmentId ?? null,
           managerId: input.managerId ?? null,
-          hireDate: input.hireDate,
+          hireDate: input.hireDate ?? today,
+          birthday: input.birthday ?? null,
           mustChangePassword: true,
         })
         .returning({ id: users.id });
@@ -251,7 +231,8 @@ export const adminRouter = router({
             let entitlement: number;
             const annual = parseFloat(lt.defaultAnnualDays);
             if (lt.accrualMethod === "front_loaded") {
-              entitlement = annual;
+              // Allow admin override for front-loaded types (e.g. vacation)
+              entitlement = input.initialAnnualLeaveDays ?? annual;
             } else if (lt.accrualMethod === "monthly") {
               entitlement = parseFloat(
                 ((annual / 12) * monthsRemaining).toFixed(2)
@@ -296,6 +277,119 @@ export const adminRouter = router({
       }
 
       return { userId: newUser.id, tempPassword };
+    }),
+
+  bulkCreateUsers: adminProcedure
+    .input(
+      z.object({
+        users: z
+          .array(
+            z.object({
+              firstName: z.string().min(1).max(100),
+              lastName: z.string().min(1).max(100),
+              email: z.string().email().toLowerCase(),
+              role: z
+                .enum(["employee", "manager", "admin", "super_admin"])
+                .default("employee"),
+              departmentId: z.string().uuid().optional(),
+            })
+          )
+          .min(1)
+          .max(50),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const today = new Date().toISOString().slice(0, 10);
+      const year = new Date().getFullYear();
+      const monthsRemaining = 12 - new Date().getMonth();
+
+      const orgLeaveTypes = await db.query.leaveTypes.findMany({
+        where: and(
+          eq(leaveTypes.organizationId, ctx.user.organizationId),
+          eq(leaveTypes.isActive, true)
+        ),
+      });
+
+      // Hash all passwords in parallel — bcrypt at cost 12 is ~300 ms each.
+      // Doing this serially for 50 users would take ~15 s; parallel takes ~300 ms.
+      const prepared = await Promise.all(
+        input.users.map(async (u) => {
+          const tempPassword = generateTempPassword();
+          const passwordHash = await hashPassword(tempPassword);
+          return { ...u, tempPassword, passwordHash };
+        })
+      );
+
+      const results: { email: string; success: boolean; tempPassword?: string; error?: string }[] = [];
+
+      for (const u of prepared) {
+        try {
+          const { tempPassword, passwordHash } = u;
+
+          const [newUser] = await db
+            .insert(users)
+            .values({
+              organizationId: ctx.user.organizationId,
+              email: u.email,
+              passwordHash,
+              firstName: u.firstName,
+              lastName: u.lastName,
+              role: u.role,
+              departmentId: u.departmentId ?? null,
+              managerId: null,
+              hireDate: today,
+              mustChangePassword: true,
+            })
+            .returning({ id: users.id });
+
+          if (orgLeaveTypes.length > 0) {
+            await db.insert(leaveBalances).values(
+              orgLeaveTypes.map((lt) => {
+                const annual = parseFloat(lt.defaultAnnualDays);
+                let entitlement: number;
+                if (lt.accrualMethod === "front_loaded") {
+                  entitlement = annual;
+                } else if (lt.accrualMethod === "monthly") {
+                  entitlement = parseFloat(((annual / 12) * monthsRemaining).toFixed(2));
+                } else {
+                  entitlement = 0;
+                }
+                return {
+                  userId: newUser.id,
+                  leaveTypeId: lt.id,
+                  year,
+                  totalEntitled: entitlement.toFixed(2),
+                };
+              })
+            );
+          }
+
+          await appendAuditLog({
+            organizationId: ctx.user.organizationId,
+            userId: ctx.user.id,
+            action: AUDIT_ACTIONS.USER_CREATED,
+            entityType: "user",
+            entityId: newUser.id,
+            newValues: { email: u.email, role: u.role },
+          });
+
+          try {
+            await sendWelcomeEmail({ email: u.email, firstName: u.firstName, tempPassword });
+          } catch {
+            // Non-critical
+          }
+
+          results.push({ email: u.email, success: true, tempPassword });
+        } catch (err) {
+          results.push({
+            email: u.email,
+            success: false,
+            error: err instanceof Error ? err.message : "Unknown error",
+          });
+        }
+      }
+
+      return { results };
     }),
 
   updateUser: adminProcedure
@@ -418,11 +512,19 @@ export const adminRouter = router({
         columns: { id: true, email: true, firstName: true },
       });
 
+      // Hash all passwords in parallel before any DB writes.
+      const prepared = await Promise.all(
+        orgUsers.map(async (user) => {
+          const tempPassword = generateTempPassword();
+          const passwordHash = await hashPassword(tempPassword);
+          return { ...user, tempPassword, passwordHash };
+        })
+      );
+
       const results: { userId: string; sent: boolean }[] = [];
 
-      for (const user of orgUsers) {
-        const tempPassword = generateTempPassword();
-        const passwordHash = await hashPassword(tempPassword);
+      for (const user of prepared) {
+        const { tempPassword, passwordHash } = user;
 
         await db
           .update(users)
@@ -469,6 +571,16 @@ export const adminRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const year = input.year ?? new Date().getFullYear();
+
+      // Verify the target user belongs to this admin's organisation
+      const targetUser = await db.query.users.findFirst({
+        where: and(
+          eq(users.id, input.userId),
+          eq(users.organizationId, ctx.user.organizationId)
+        ),
+        columns: { id: true },
+      });
+      if (!targetUser) throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
 
       const balance = await db.query.leaveBalances.findFirst({
         where: and(
@@ -594,22 +706,39 @@ export const adminRouter = router({
       });
       if (!target) throw new TRPCError({ code: "NOT_FOUND" });
 
-      // Cancel any pending leave requests before deleting
+      // Cancel pending requests, restore balances, then delete — all in one transaction
       const pendingReqs = await db.query.leaveRequests.findMany({
         where: and(
           eq(leaveRequests.userId, input.userId),
           eq(leaveRequests.status, "pending")
         ),
-        columns: { id: true },
+        columns: { id: true, leaveTypeId: true, startDate: true, totalBusinessDays: true },
       });
-      if (pendingReqs.length > 0) {
-        await db
-          .update(leaveRequests)
-          .set({ status: "cancelled", updatedAt: new Date() })
-          .where(inArray(leaveRequests.id, pendingReqs.map((r) => r.id)));
-      }
 
-      await db.delete(users).where(eq(users.id, input.userId));
+      await db.transaction(async (tx) => {
+        for (const req of pendingReqs) {
+          await tx
+            .update(leaveRequests)
+            .set({ status: "cancelled", cancelledAt: new Date(), updatedAt: new Date() })
+            .where(eq(leaveRequests.id, req.id));
+
+          const year = parseInt(req.startDate.toString().substring(0, 4), 10);
+          await tx
+            .update(leaveBalances)
+            .set({
+              pending: sql`GREATEST(0, ${leaveBalances.pending} - ${parseFloat(req.totalBusinessDays)})`,
+            })
+            .where(
+              and(
+                eq(leaveBalances.userId, input.userId),
+                eq(leaveBalances.leaveTypeId, req.leaveTypeId),
+                eq(leaveBalances.year, year)
+              )
+            );
+        }
+
+        await tx.delete(users).where(eq(users.id, input.userId));
+      });
 
       await appendAuditLog({
         organizationId: ctx.user.organizationId,
@@ -684,9 +813,35 @@ export const adminRouter = router({
       });
       if (!dept) throw new TRPCError({ code: "NOT_FOUND" });
 
-      // Prevent a department from being its own parent or creating a cycle
-      if (fields.parentId && fields.parentId === departmentId) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "A department cannot be its own parent." });
+      // Prevent self-parent and transitive cycles (A→B→C→A).
+      // Walk the ancestor chain of the proposed new parentId; if departmentId
+      // appears anywhere in it, accepting this change would create a cycle.
+      if (fields.parentId !== undefined && fields.parentId !== null) {
+        if (fields.parentId === departmentId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "A department cannot be its own parent." });
+        }
+
+        const cycleCheck = await db.execute(sql`
+          WITH RECURSIVE ancestors(id, parent_id, depth) AS (
+            SELECT id, parent_id, 0
+            FROM departments
+            WHERE id = ${fields.parentId}
+              AND organization_id = ${ctx.user.organizationId}
+            UNION ALL
+            SELECT d.id, d.parent_id, a.depth + 1
+            FROM departments d
+            JOIN ancestors a ON d.id = a.parent_id
+            WHERE a.parent_id IS NOT NULL AND a.depth < 20
+          )
+          SELECT 1 AS found FROM ancestors WHERE id = ${departmentId} LIMIT 1
+        `);
+
+        if (cycleCheck.rows.length) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Setting this parent would create a circular hierarchy.",
+          });
+        }
       }
 
       const updates = Object.fromEntries(
@@ -1026,9 +1181,7 @@ export const adminRouter = router({
   // =========================================================================
 
   getOrgSettings: adminProcedure.query(async ({ ctx }) => {
-    const org = await db.query.organizations.findFirst({
-      where: eq(organizations.id, ctx.user.organizationId),
-    });
+    const org = ctx.user.organization;
     if (!org) throw new TRPCError({ code: "NOT_FOUND" });
     return org;
   }),
@@ -1221,9 +1374,7 @@ export const adminRouter = router({
         throw new TRPCError({ code: "FORBIDDEN" });
       }
 
-      const org = await db.query.organizations.findFirst({
-        where: eq(organizations.id, ctx.user.organizationId),
-      });
+      const org = ctx.user.organization;
 
       const workSchedule = org?.workSchedule as
         | { workDays: number[] }
@@ -1262,6 +1413,8 @@ export const adminRouter = router({
           endDate: input.endDate,
         },
       });
+
+      notifyAdminEditedRequest(input.requestId, ctx.user.id).catch(console.error);
 
       return { success: true };
     }),

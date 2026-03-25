@@ -1,10 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
-import { publicProcedure, router } from "./trpc";
-import { db } from "@/server/db";
-import { organizations } from "@/server/db/schema";
-import { getUserById } from "@/server/services/user-service";
+import { approverProcedure, router } from "./trpc";
 import {
   approveRequest,
   denyRequest,
@@ -13,39 +9,6 @@ import {
   overrideRequest,
 } from "@/server/services/approval-service";
 import type { UserRole } from "@/lib/types";
-
-// ---------------------------------------------------------------------------
-// Protected procedure — requires authenticated session
-// ---------------------------------------------------------------------------
-
-const protectedProcedure = publicProcedure.use(async ({ ctx, next }) => {
-  if (!ctx.session?.user) {
-    throw new TRPCError({ code: "UNAUTHORIZED" });
-  }
-
-  const user = await getUserById(ctx.session.user.id);
-  if (!user || user.deletedAt || user.employmentStatus === "terminated") {
-    throw new TRPCError({ code: "UNAUTHORIZED" });
-  }
-
-  const org = await db.query.organizations.findFirst({
-    where: eq(organizations.id, user.organizationId),
-  });
-
-  return next({ ctx: { ...ctx, user, org: org ?? null } });
-});
-
-/** Middleware that additionally enforces manager-or-above role */
-const approverProcedure = protectedProcedure.use(({ ctx, next }) => {
-  const role = ctx.user.role as UserRole;
-  if (!["manager", "admin", "super_admin"].includes(role)) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "Only managers and admins can access the approval queue.",
-    });
-  }
-  return next({ ctx });
-});
 
 // ---------------------------------------------------------------------------
 // Approval router
