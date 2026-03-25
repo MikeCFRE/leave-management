@@ -90,7 +90,7 @@ export async function changePassword(
   if (!user) redirect("/login");
 
   await updatePassword(user.id, newPassword);
-  await unstable_update({ mustChangePassword: false });
+  await unstable_update({ user: { mustChangePassword: false } });
 
   redirect("/dashboard");
 }

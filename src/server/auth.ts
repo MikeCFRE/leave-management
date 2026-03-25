@@ -104,8 +104,8 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
         token.mustChangePassword = user.mustChangePassword;
         token.organizationId = (user as unknown as { organizationId: string }).organizationId;
       }
-      if (trigger === "update" && session?.mustChangePassword !== undefined) {
-        token.mustChangePassword = session.mustChangePassword as boolean;
+      if (trigger === "update" && session?.user?.mustChangePassword !== undefined) {
+        token.mustChangePassword = session.user.mustChangePassword as boolean;
       }
       return token;
     },
