@@ -315,6 +315,7 @@ export const adminRouter = router({
           .enum(["active", "inactive", "on_leave", "terminated"])
           .optional(),
         birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+        hireDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {

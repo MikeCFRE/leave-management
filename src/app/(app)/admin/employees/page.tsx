@@ -356,11 +356,11 @@ export default function EmployeesPage() {
               {items.map((u) => (
                 <div
                   key={u.id}
-                  className="flex flex-col gap-1 px-4 py-3 sm:grid sm:grid-cols-[1fr_1fr_auto_auto_auto_auto] sm:items-center sm:gap-4"
+                  className="flex flex-col gap-1 px-4 py-2 sm:grid sm:grid-cols-[1fr_1fr_auto_auto_auto_auto] sm:items-center sm:gap-4"
                 >
                   <Link
                     href={`/admin/employees/${u.id}`}
-                    className="inline-flex min-h-[44px] items-center text-sm font-medium text-slate-800 hover:underline rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="inline-flex items-center text-sm font-medium text-slate-800 hover:underline rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     {u.firstName} {u.lastName}
                   </Link>

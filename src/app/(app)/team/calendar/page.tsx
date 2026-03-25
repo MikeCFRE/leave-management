@@ -327,17 +327,22 @@ export default function TeamCalendarPage() {
               <p className="text-sm text-slate-400">No one is out on this day.</p>
             ) : (
               <div className="divide-y">
-                {selectedBirthdays.map((member) => (
-                  <div key={`bday-${member.id}`} className="py-2.5 first:pt-0">
-                    <div className="flex items-center gap-2">
-                      <Cake className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                      <p className="text-sm font-medium text-slate-800">
-                        {member.firstName} {member.lastName}
-                      </p>
+                {selectedBirthdays.map((member) => {
+                  const birthYear = parseInt(member.birthday.slice(0, 4), 10);
+                  const selectedYear = selectedDay ? parseInt(selectedDay.slice(0, 4), 10) : today.getFullYear();
+                  const age = selectedYear - birthYear;
+                  return (
+                    <div key={`bday-${member.id}`} className="py-2.5 first:pt-0">
+                      <div className="flex items-center gap-2">
+                        <Cake className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                        <p className="text-sm font-medium text-slate-800">
+                          {member.firstName} {member.lastName}
+                        </p>
+                      </div>
+                      <p className="mt-0.5 ml-5.5 text-xs text-green-600">🎂 Birthday — turning {age}</p>
                     </div>
-                    <p className="mt-0.5 ml-5.5 text-xs text-green-600">Birthday 🎂</p>
-                  </div>
-                ))}
+                  );
+                })}
                 {selectedEvents.map((evt, i) => {
                   const days = parseFloat(evt.totalBusinessDays);
                   return (

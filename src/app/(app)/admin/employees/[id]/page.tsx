@@ -310,7 +310,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
   const [form, setForm] = useState({
     firstName: "", lastName: "", email: "",
     role: "employee", departmentId: "", managerId: "", employmentStatus: "active",
-    birthday: "",
+    birthday: "", hireDate: "",
   });
 
   useEffect(() => {
@@ -324,6 +324,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
         managerId: user.managerId ?? "",
         employmentStatus: user.employmentStatus,
         birthday: user.birthday ?? "",
+        hireDate: user.hireDate ? String(user.hireDate).slice(0, 10) : "",
       });
     }
   }, [user]);
@@ -354,6 +355,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       managerId: form.managerId || null,
       employmentStatus: form.employmentStatus as "active" | "inactive" | "on_leave" | "terminated",
       birthday: form.birthday || null,
+      hireDate: form.hireDate || undefined,
     });
   }
 
@@ -431,9 +433,15 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
               <Label htmlFor="ed-email">Email</Label>
               <Input id="ed-email" type="email" value={form.email} onChange={ff("email")} required />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="ed-birthday">Birthday</Label>
-              <Input id="ed-birthday" type="date" value={form.birthday} onChange={ff("birthday")} />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="ed-hire">Hire Date</Label>
+                <Input id="ed-hire" type="date" value={form.hireDate} onChange={ff("hireDate")} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="ed-birthday">Birthday</Label>
+                <Input id="ed-birthday" type="date" value={form.birthday} onChange={ff("birthday")} />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -507,10 +515,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
               </div>
             </div>
           </CardContent>
-          <CardFooter className="justify-between border-t pt-4">
-            <p className="text-xs text-slate-400">
-              Hired {format(new Date(user.hireDate), "MMMM d, yyyy")}
-            </p>
+          <CardFooter className="justify-end border-t pt-4">
             <Button type="submit" disabled={updateUser.isPending}>
               {updateUser.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save Changes
