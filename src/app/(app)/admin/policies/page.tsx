@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { format, parseISO } from "date-fns";
 import {
-  PlusCircle, Pencil, Trash2, Loader2,
+  PlusCircle, Pencil, ToggleLeft, ToggleRight, Trash2, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -258,6 +258,39 @@ function DeleteLeaveTypeDialog({
 }
 
 // ---------------------------------------------------------------------------
+// Toggle active/inactive button for a leave type
+// ---------------------------------------------------------------------------
+
+function ToggleLeaveTypeButton({ lt }: { lt: LeaveType }) {
+  const utils = trpc.useUtils();
+  const toggle = trpc.admin.updateLeaveType.useMutation({
+    onSuccess: () => {
+      toast.success(lt.isActive ? `"${lt.name}" deactivated.` : `"${lt.name}" activated.`);
+      utils.admin.listLeaveTypes.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={`h-7 w-7 ${lt.isActive ? "text-green-600 hover:text-green-700" : "text-slate-400 hover:text-slate-600"}`}
+      onClick={() => toggle.mutate({ leaveTypeId: lt.id, isActive: !lt.isActive })}
+      disabled={toggle.isPending}
+      aria-label={lt.isActive ? `Deactivate ${lt.name}` : `Activate ${lt.name}`}
+      title={lt.isActive ? "Active — click to deactivate" : "Inactive — click to activate"}
+    >
+      {toggle.isPending
+        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        : lt.isActive
+        ? <ToggleRight className="h-4 w-4" />
+        : <ToggleLeft className="h-4 w-4" />}
+    </Button>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Leave Types tab
 // ---------------------------------------------------------------------------
 
@@ -299,6 +332,7 @@ function LeaveTypesTab({ departments: _departments }: { departments: Department[
                 </p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
+                <ToggleLeaveTypeButton lt={lt} />
                 <Button
                   variant="ghost" size="icon" className="h-7 w-7"
                   onClick={() => setEditLt(lt)}
