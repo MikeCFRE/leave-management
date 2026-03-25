@@ -73,7 +73,7 @@ export function Header() {
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden h-9 w-9 flex-shrink-0"
+            className="lg:hidden h-11 w-11 flex-shrink-0"
             onClick={() => setMobileNavOpen(true)}
             aria-label="Open navigation"
           >
@@ -91,7 +91,7 @@ export function Header() {
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
-                <Button variant="ghost" className="h-9 gap-2 pl-2 pr-1">
+                <Button variant="ghost" className="h-11 gap-2 pl-2 pr-1">
                   <Avatar className="h-7 w-7">
                     <AvatarFallback className="bg-blue-100 text-blue-700 text-xs font-semibold">
                       {getInitials(user?.name)}

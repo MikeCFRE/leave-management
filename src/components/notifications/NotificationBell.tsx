@@ -44,7 +44,7 @@ export function NotificationBell() {
     <Popover>
       <PopoverTrigger
         render={
-          <Button variant="ghost" size="icon" className="relative h-9 w-9">
+          <Button variant="ghost" size="icon" className="relative h-11 w-11">
             <Bell className="h-4 w-4 text-slate-500" />
             {unreadCount > 0 && (
               <Badge
