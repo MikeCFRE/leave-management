@@ -836,7 +836,7 @@ export const adminRouter = router({
           SELECT 1 AS found FROM ancestors WHERE id = ${departmentId} LIMIT 1
         `);
 
-        if (cycleCheck.rows.length) {
+        if (cycleCheck.length) {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: "Setting this parent would create a circular hierarchy.",

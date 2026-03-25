@@ -83,7 +83,7 @@ async function assertCanApprove(
     SELECT 1 AS found FROM chain WHERE manager_id = ${approverId} LIMIT 1
   `);
 
-  if (!result.rows.length) {
+  if (!result.length) {
     throw new Error("You are not authorised to act on this request.");
   }
 }
