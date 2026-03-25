@@ -132,7 +132,7 @@ export default function DashboardPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold text-slate-900">Welcome back, {firstName}</h2>
-          <p className="mt-0.5 text-sm text-slate-500">{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
+          <p className="mt-0.5 text-sm text-slate-500" suppressHydrationWarning>{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
         </div>
         <Button nativeButton={false} render={<Link href="/requests/new" />}>
           <PlusCircle className="mr-2 h-4 w-4" />

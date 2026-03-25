@@ -6,7 +6,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { parseLocalDate } from "@/lib/date-utils";
 import {
-  AlertCircle, ArrowLeft, Loader2, Minus, Plus,
+  AlertCircle, ArrowLeft, Loader2, Mail, Minus, Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -327,6 +327,11 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
   }, [user]);
 
   const utils = trpc.useUtils();
+  const sendLoginLink = trpc.admin.sendLoginLink.useMutation({
+    onSuccess: () => toast.success("Login link sent to " + (user?.email ?? "employee") + "."),
+    onError: (err) => toast.error(err.message),
+  });
+
   const updateUser = trpc.admin.updateUser.useMutation({
     onSuccess: () => {
       toast.success("Employee updated.");
@@ -383,10 +388,24 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
         <Button variant="ghost" size="icon" nativeButton={false} render={<Link href="/admin/employees" />} aria-label="Back">
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div>
+        <div className="flex-1">
           <h2 className="text-xl font-semibold text-slate-900">{employeeName}</h2>
           <p className="mt-0.5 text-sm text-slate-500">{user.email}</p>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => sendLoginLink.mutate({ userId: id })}
+          disabled={sendLoginLink.isPending}
+          aria-label="Send Login Link"
+        >
+          {sendLoginLink.isPending ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Mail className="mr-2 h-4 w-4" />
+          )}
+          Send Login Link
+        </Button>
       </div>
 
       {/* Edit form */}
