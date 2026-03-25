@@ -351,7 +351,7 @@ export default function EmployeesPage() {
                 >
                   <Link
                     href={`/admin/employees/${u.id}`}
-                    className="text-sm font-medium text-slate-800 hover:underline"
+                    className="inline-flex min-h-[44px] items-center text-sm font-medium text-slate-800 hover:underline"
                   >
                     {u.firstName} {u.lastName}
                   </Link>
